@@ -1,0 +1,23 @@
+# Dependencies & Build Outputs
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+renderer/dist/
+**/renderer/dist/
+
+# Runtime State & Local Databases
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db
+.orchestrator/
+**/.orchestrator/
+tmp/
+**/tmp/
+
+# Secrets & Logs
+.env
+.env.*
+*.log
+npm-debug.log*
