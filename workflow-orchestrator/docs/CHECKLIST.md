@@ -12,12 +12,12 @@
   - [x] `src/store/` (`schema.ts`, `database.ts`, `index.ts`) with `node:sqlite` WAL + FTS5
   - [x] Verify `npm run lint` & `tsc -p tsconfig.json --noEmit`, push Milestone 2
 
-- [ ] **Milestone 3 (Push 3): Sandbox, Adapters, Orchestrator Engine & Daemon**
-  - [ ] `src/sandbox/` (`contracts.ts`, `process-runner.ts`, `git-worktree.ts`, `index.ts`)
-  - [ ] `src/adapters/` (`contracts.ts`, `resource-broker.ts`, `tool-runner.ts`, `cli-stream.ts`, `acp-client.ts`, `native-api.ts`, `index.ts`)
-  - [ ] `src/engines/` (`planner.ts`, `certifier.ts`, `orchestrator.ts`, `index.ts`)
-  - [ ] `src/server/` (`secret-vault.ts`, `http-router.ts`, `runtime.ts`) + `src/electron/` (`main.ts`, `preload.ts`) + `scripts/` (`build.mjs`, `dev.mjs`, `start.mjs`, `run-verify.mjs`)
-  - [ ] Verify `npm run lint`, host `tsc`, and `esbuild` main/preload build, push Milestone 3
+- [x] **Milestone 3 (Push 3): Sandbox, Adapters, Orchestrator Engine & Daemon**
+  - [x] `src/sandbox/` (`contracts.ts`, `process-runner.ts`, `git-worktree.ts`, `index.ts`)
+  - [x] `src/adapters/` (`contracts.ts`, `resource-broker.ts`, `tool-runner.ts`, `cli-stream.ts`, `acp-client.ts`, `native-api.ts`, `index.ts`)
+  - [x] `src/engines/` (`planner.ts`, `certifier.ts`, `orchestrator.ts`, `index.ts`)
+  - [x] `src/server/` (`secret-vault.ts`, `http-router.ts`, `runtime.ts`) + `src/electron/` (`main.ts`, `preload.ts`) + `scripts/` (`build.mjs`, `dev.mjs`, `start.mjs`, `run-verify.mjs`)
+  - [x] Verify `npm run lint`, host `tsc`, and `esbuild` main/preload build, push Milestone 3
 
 - [ ] **Milestone 4 (Push 4): Light DirectUI Workbench Renderer (`ZH` / `EN`)**
   - [ ] `renderer/index.html`, `renderer/vite.config.ts`, `renderer/src/styles/theme.css`

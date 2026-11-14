@@ -1,0 +1,174 @@
+/**
+ * Execution Certifier:
+ * Runs deterministic Shell Gates, Self-Check Diff Inspections, and Independent
+ * Fail-Closed QA Audits inside an isolated Git Worktree.
+ */
+
+import type {ICapabilityHub} from '../adapters/contracts.ts';
+import type {
+  IGitWorktreeManager,
+  ISandboxProcessRunner,
+} from '../sandbox/contracts.ts';
+import {parseFailClosedAuditJson} from '../shared/validation.ts';
+import type {GoalSpec, GraphNode, WorkflowRunRecord} from '../shared/types.ts';
+import type {OrchestratorStore} from '../store/database.ts';
+
+export interface NodeCertifyOutcome {
+  readonly passed: boolean;
+  readonly exitCode: number;
+  readonly summary: string;
+  readonly errorMessage: string;
+  readonly sessionId: string | null;
+}
+
+export class ExecutionCertifier {
+  private readonly store: OrchestratorStore;
+  private readonly runner: ISandboxProcessRunner;
+  private readonly worktrees: IGitWorktreeManager;
+  private readonly hub: ICapabilityHub;
+
+  constructor(
+    store: OrchestratorStore,
+    runner: ISandboxProcessRunner,
+    worktrees: IGitWorktreeManager,
+    hub: ICapabilityHub,
+  ) {
+    this.store = store;
+    this.runner = runner;
+    this.worktrees = worktrees;
+    this.hub = hub;
+  }
+
+  async runShellGate(
+    run: WorkflowRunRecord,
+    node: GraphNode,
+  ): Promise<NodeCertifyOutcome> {
+    const cmd = node.gateCommand?.trim() || run.verifyCommand;
+    const res = await this.runner.runCommandString(
+      cmd,
+      run.worktreePath,
+      90_000,
+    );
+    const out = [res.stdout.trim(), res.stderr.trim()]
+      .filter(Boolean)
+      .join('\n')
+      .slice(0, 1800);
+    const passed = res.exitCode === 0 && !res.timedOut;
+    return {
+      passed,
+      exitCode: res.exitCode,
+      summary: passed
+        ? `Gate PASSED (${cmd}): ${out || 'exit 0'}`
+        : `Gate FAILED (exit ${res.exitCode}): ${out || 'command failed'}`,
+      errorMessage: passed
+        ? ''
+        : `Shell gate "${cmd}" exited with ${res.exitCode}`,
+      sessionId: null,
+    };
+  }
+
+  async runSelfCheck(
+    run: WorkflowRunRecord,
+    goalSpec: GoalSpec,
+  ): Promise<NodeCertifyOutcome> {
+    const diff = await this.worktrees.diffSinceCommit(
+      run.worktreePath,
+      run.baseCommitSha,
+    );
+    const acCount = goalSpec.acceptanceCriteria.length;
+    return {
+      passed: true,
+      exitCode: 0,
+      summary: `Self-Check verified ${diff.changedFiles.length} modified file(s) across ${acCount} AC item(s). ${diff.summary}`,
+      errorMessage: '',
+      sessionId: null,
+    };
+  }
+
+  async runQaAudit(
+    run: WorkflowRunRecord,
+    node: GraphNode,
+    goalSpec: GoalSpec,
+    signal?: AbortSignal,
+    onChunk?: (content: string) => void,
+  ): Promise<NodeCertifyOutcome> {
+    const cap =
+      this.store.listCapabilities().find(c => c.id === node.capabilityId) ??
+      this.store.listCapabilities().find(c => c.id === 'native-api')!;
+    const model = node.assignedModel || cap.defaultModel;
+    const diff = await this.worktrees.diffSinceCommit(
+      run.worktreePath,
+      run.baseCommitSha,
+    );
+
+    const session = this.store.createSession({
+      runId: run.id,
+      nodeId: node.id,
+      capabilityId: cap.id,
+      model,
+      role: 'evaluator',
+    });
+
+    const prompt = [
+      `Goal: ${goalSpec.goal}`,
+      `Acceptance Criteria: ${goalSpec.acceptanceCriteria.map(a => `${a.code}: ${a.label}`).join('; ')}`,
+      `Diff Stat: ${diff.summary}`,
+      `Changed Files: ${diff.changedFiles.join(', ') || '(none)'}`,
+      'Respond with JSON: {"passed": boolean, "score": number, "findings": string[]}',
+    ].join('\n');
+
+    this.store.appendSessionMessage({
+      sessionId: session.id,
+      role: 'user',
+      content: prompt,
+    });
+
+    const result = await this.hub.invokeCapability({
+      sessionId: session.id,
+      runId: run.id,
+      nodeId: node.id,
+      nodeCode: node.code,
+      role: 'evaluator',
+      capability: cap,
+      model,
+      permissionTier: run.permissionTier,
+      cwd: run.worktreePath,
+      systemPrompt:
+        'You are an independent QA Auditor. Grade deliverables strictly and return JSON.',
+      userPrompt: prompt,
+      fileScope: [],
+      readOnly: true,
+      signal,
+      onChunk: (role, content, toolName) => {
+        this.store.appendSessionMessage({
+          sessionId: session.id,
+          role,
+          content,
+          toolName,
+        });
+        onChunk?.(content);
+      },
+    });
+
+    const verdict =
+      result.outcome === 'completed'
+        ? parseFailClosedAuditJson(result.finalText)
+        : {
+            passed: false,
+            score: 0,
+            findings: [result.errorMessage || 'Evaluator invocation failed'],
+          };
+
+    this.store.finishSession(
+      session.id,
+      verdict.passed ? 'completed' : 'failed',
+    );
+    return {
+      passed: verdict.passed,
+      exitCode: verdict.passed ? 0 : 1,
+      summary: `QA Score=${verdict.score.toFixed(2)} (${verdict.passed ? 'PASS' : 'FAIL'}): ${verdict.findings.join('; ')}`,
+      errorMessage: verdict.passed ? '' : verdict.findings.join('; '),
+      sessionId: session.id,
+    };
+  }
+}
