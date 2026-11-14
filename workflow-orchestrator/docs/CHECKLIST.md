@@ -19,13 +19,13 @@
   - [x] `src/server/` (`secret-vault.ts`, `http-router.ts`, `runtime.ts`) + `src/electron/` (`main.ts`, `preload.ts`) + `scripts/` (`build.mjs`, `dev.mjs`, `start.mjs`, `run-verify.mjs`)
   - [x] Verify `npm run lint`, host `tsc`, and `esbuild` main/preload build, push Milestone 3
 
-- [ ] **Milestone 4 (Push 4): Light DirectUI Workbench Renderer (`ZH` / `EN`)**
-  - [ ] `renderer/index.html`, `renderer/vite.config.ts`, `renderer/src/styles/theme.css`
-  - [ ] `renderer/src/i18n.ts`, `renderer/src/api/client.ts`, `renderer/src/components/Icons.tsx`
-  - [ ] `WorkflowsView` (Requirements Import -> GoalSpec -> WBS & Twin-Graph Design -> Validation -> Change Impact -> Trial Run -> Lock Version)
-  - [ ] `WorkstationView` (Live Flow Canvas + WBS + Node Inspector + Pause/Resume/Retry/Human Gate/GhostNode/Rollback)
-  - [ ] `CapabilitiesView` (Capability Pool, Models, Health/Circuit Status) + `RunsAuditView` (Versions, Runs & FTS5 Evidence Traceability)
-  - [ ] Verify `npm run lint`, `npm run typecheck`, `npm run build`, push Milestone 4
+- [x] **Milestone 4 (Push 4): Light DirectUI Workbench Renderer (`ZH` / `EN`)**
+  - [x] `renderer/index.html`, `renderer/vite.config.ts`, `renderer/src/styles/theme.css`
+  - [x] `renderer/src/i18n.ts`, `renderer/src/api/client.ts`, `renderer/src/components/Icons.tsx`
+  - [x] `WorkflowsView` (Requirements Import -> GoalSpec -> WBS & Twin-Graph Design -> Validation -> Change Impact -> Trial Run -> Lock Version)
+  - [x] `WorkstationView` (Live Flow Canvas + WBS + Node Inspector + Pause/Resume/Retry/Human Gate/GhostNode/Rollback)
+  - [x] `CapabilitiesView` (Capability Pool, Models, Health/Circuit Status) + `RunsAuditView` (Versions, Runs & FTS5 Evidence Traceability)
+  - [x] Verify `npm run lint`, `npm run typecheck`, `npm run build`, push Milestone 4
 
 - [ ] **Milestone 5 (Push 5): Lean Verification Gates, Electron Smoke & Final README**
   - [ ] `verify/planner-and-validator.verify.ts`
