@@ -124,6 +124,29 @@ export function computeNextFrontier(
       continue;
     }
 
+    // Recovery (`fail`-edge-only) nodes trigger as soon as ANY upstream failure occurs,
+    // rather than blocking until later stages also fail or settle.
+    if (deps.every(e => e.kind === 'fail')) {
+      const anyFailed = deps.some(
+        e => byId.get(e.sourceNodeId)?.status === 'failed',
+      );
+      const allCleared = deps.every(e => {
+        const src = byId.get(e.sourceNodeId);
+        return (
+          !src ||
+          src.status === 'succeeded' ||
+          src.status === 'waived' ||
+          src.status === 'skipped'
+        );
+      });
+      if (anyFailed) {
+        readyNodeIds.push(node.id);
+      } else if (allCleared) {
+        skipNodeIds.push(node.id);
+      }
+      continue;
+    }
+
     let hasUnresolved = false;
     let satisfiedCount = 0;
     let disabledCount = 0;

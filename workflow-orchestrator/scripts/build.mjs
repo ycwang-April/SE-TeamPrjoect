@@ -27,6 +27,18 @@ await esbuild({
   external: ['electron'],
 });
 
+await esbuild({
+  entryPoints: [resolve(root, 'src/server/runtime.ts')],
+  outfile: resolve(root, 'dist/server/runtime.cjs'),
+  bundle: true,
+  platform: 'node',
+  target: 'node24',
+  format: 'cjs',
+  sourcemap: true,
+  define: {'import.meta.dirname': '__dirname'},
+  external: ['node:sqlite'],
+});
+
 if (!process.argv.includes('--main-only')) {
   await viteBuild({
     configFile: resolve(root, 'renderer/vite.config.ts'),

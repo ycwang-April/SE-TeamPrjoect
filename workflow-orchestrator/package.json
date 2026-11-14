@@ -12,6 +12,7 @@
     "dev": "node scripts/dev.mjs",
     "build": "node scripts/build.mjs",
     "start": "node scripts/start.mjs",
+    "start:web": "node scripts/serve-web.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
     "lint": "gts lint",
     "format": "gts fix",

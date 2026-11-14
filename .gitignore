@@ -21,3 +21,4 @@ tmp/
 .env.*
 *.log
 npm-debug.log*
+*.tsbuildinfo

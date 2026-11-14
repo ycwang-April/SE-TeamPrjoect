@@ -859,15 +859,23 @@ export class WorkflowOrchestratorEngine {
           });
         });
 
+        const summary = `Rewound ${resetSet.size} nodes cleanly via rescue ref ${rewound.rescueRef}`;
         this.finishNodeSuccess(
           runId,
           run.workflowId,
           node,
           attemptId,
           startedAt,
-          `Rewound ${resetSet.size} nodes cleanly via rescue ref ${rewound.rescueRef}`,
+          summary,
           null,
         );
+        // Re-arm restore node so subsequent rework iterations within budget still trigger,
+        // and clean gate/QA passes skip it automatically.
+        this.store.updateNodeState(node.id, {
+          status: 'pending',
+          outputSummary: summary,
+        });
+        this.store.recountRunProgress(runId);
         return;
       }
 
