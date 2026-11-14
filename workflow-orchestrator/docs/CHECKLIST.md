@@ -6,11 +6,11 @@
   - [x] `docs/SPEC.md`, `docs/DESIGN-ALIGNMENT.md`, `docs/CHECKLIST.md`
   - [x] Install dependencies (`npm install`) & push Milestone 1 to `origin main`
 
-- [ ] **Milestone 2 (Push 2): Shared Contracts, Pure Domain Core & SQLite Store**
-  - [ ] `src/shared/` (`errors.ts`, `types.ts`, `validation.ts`, `api.ts`)
-  - [ ] `src/core/` (`spec-parser.ts`, `validator.ts`, `twin-graph.ts`, `policy.ts`, `telemetry.ts`, `index.ts`)
-  - [ ] `src/store/` (`schema.ts`, `database.ts`, `index.ts`) with `node:sqlite` WAL + FTS5
-  - [ ] Verify `npm run lint` & `tsc -p tsconfig.json --noEmit`, push Milestone 2
+- [x] **Milestone 2 (Push 2): Shared Contracts, Pure Domain Core & SQLite Store**
+  - [x] `src/shared/` (`errors.ts`, `types.ts`, `validation.ts`, `api.ts`)
+  - [x] `src/core/` (`spec-parser.ts`, `validator.ts`, `twin-graph.ts`, `policy.ts`, `telemetry.ts`, `index.ts`)
+  - [x] `src/store/` (`schema.ts`, `database.ts`, `index.ts`) with `node:sqlite` WAL + FTS5
+  - [x] Verify `npm run lint` & `tsc -p tsconfig.json --noEmit`, push Milestone 2
 
 - [ ] **Milestone 3 (Push 3): Sandbox, Adapters, Orchestrator Engine & Daemon**
   - [ ] `src/sandbox/` (`contracts.ts`, `process-runner.ts`, `git-worktree.ts`, `index.ts`)
