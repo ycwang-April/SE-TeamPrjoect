@@ -1,3 +1,4 @@
+import {spawn} from 'node:child_process';
 import {existsSync} from 'node:fs';
 import {createRequire} from 'node:module';
 import {resolve} from 'node:path';
@@ -32,6 +33,23 @@ if (process.env['ORCH_SMOKE_EXIT'] === '1') {
   console.log(`Smoke /api/health HTTP ${res.status}`);
   await runtime.stop();
   process.exit(res.ok ? 0 : 1);
+}
+
+if (process.argv.includes('--open')) {
+  try {
+    if (process.platform === 'win32') {
+      spawn('cmd.exe', ['/d', '/s', '/c', `start "" "${url}"`], {
+        detached: true,
+        stdio: 'ignore',
+      }).unref();
+    } else if (process.platform === 'darwin') {
+      spawn('open', [url], {detached: true, stdio: 'ignore'}).unref();
+    } else {
+      spawn('xdg-open', [url], {detached: true, stdio: 'ignore'}).unref();
+    }
+  } catch {
+    // Non-fatal if browser open is unsupported in headless environments
+  }
 }
 
 const shutdown = async () => {

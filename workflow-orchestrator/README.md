@@ -16,7 +16,14 @@ npm run build
 npm run verify:gates
 ```
 
-### Launch Modes
+### Prebuilt Downloadable Demo (Zero-Build Launch)
+
+Download from **GitHub Releases (`v0.1.0`)** or generate locally with `npm run package:release`:
+
+1. **`WorkflowOrchestrator-v0.1.0-win32-x64-desktop.zip`** — Standalone Windows x64 Electron Desktop App (no Node.js or `npm install` needed): unzip and double-click `WorkflowOrchestrator.exe`.
+2. **`WorkflowOrchestrator-v0.1.0-portable-web.zip`** — Lightweight cross-platform bundle (requires Node.js >= 24): double-click `Start-Demo.bat` (Windows) or run `./start-demo.sh` (macOS/Linux) to launch and open the browser workbench automatically.
+
+### Launch Modes from Source
 
 - **Web Workbench (pure Node 24 + loopback HTTP/SSE)**:
   ```bash

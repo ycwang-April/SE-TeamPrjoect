@@ -5,6 +5,8 @@ dist/
 **/dist/
 renderer/dist/
 **/renderer/dist/
+release/
+**/release/
 
 # Runtime State & Local Databases
 *.sqlite

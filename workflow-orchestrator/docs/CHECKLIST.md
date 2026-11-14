@@ -31,5 +31,8 @@
   - [x] `verify/planner-and-validator.verify.ts`
   - [x] `verify/orchestrator-and-sandbox.verify.ts`
   - [x] `verify/fullstack-smoke.verify.ts`
-  - [x] Full `npm run lint`, `npm run typecheck`, `npm run build`, `npm run verify:gates`, loopback `start:web` smoke (`ORCH_SMOKE_EXIT=1`), final push
-  - Note: Packaged Electron desktop binary smoke (`scripts/start.mjs`) is deferred in offline/sandboxed CI environments lacking downloaded Electron runtime binaries (`node_modules/electron/dist/electron.exe`).
+  - [x] Full `npm run lint`, `npm run typecheck`, `npm run build`, `npm run verify:gates`, loopback `start:web` smoke (`ORCH_SMOKE_EXIT=1`), push
+
+- [x] **Release `v0.1.0`: Prebuilt Downloadable Demo Artifacts**
+  - [x] `scripts/package-release.mjs` (`npm run package:release`) generating `WorkflowOrchestrator-v0.1.0-win32-x64-desktop.zip` (`WorkflowOrchestrator.exe`) & `WorkflowOrchestrator-v0.1.0-portable-web.zip` (`Start-Demo.bat` / `start-demo.sh`)
+  - [x] Extracted archive smoke checks passed for both desktop EXE (`ORCH_SMOKE_EXIT=1`) and portable web bundle (`Smoke /api/health HTTP 200`), uploaded to GitHub Release `v0.1.0`

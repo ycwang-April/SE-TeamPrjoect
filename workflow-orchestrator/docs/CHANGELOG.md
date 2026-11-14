@@ -1,6 +1,8 @@
 # Changelog (`workflow-orchestrator`)
 
-## v0.1.0 — Milestone 5: Verification Gates & Documentation
+## v0.1.0 — Release Packaging & Verification
+- Added `scripts/package-release.mjs` (`npm run package:release`) building standalone `WorkflowOrchestrator-v0.1.0-win32-x64-desktop.zip` (`WorkflowOrchestrator.exe`, zero-dependency Electron 44 + embedded Node 24 / `node:sqlite`) and `WorkflowOrchestrator-v0.1.0-portable-web.zip` (`Start-Demo.bat` / `start-demo.sh`).
+- Updated built-in default sample workspace & gate commands to `echo Verification gate passed` so standalone demo executables require no external Node binary on `PATH`.
 - Added lean verification suite (`verify/planner-and-validator.verify.ts`, `verify/orchestrator-and-sandbox.verify.ts`, `verify/fullstack-smoke.verify.ts`) covering PRD parsing, 3-level validation, fail-closed version locking, isolated Git worktree execution, Human Gate suspension/approval, runtime `GhostNode` splicing, conditional branch skipping, bounded `Restore` rework via Git rescue refs, FTS5 search, Bearer auth, and SSE.
 - Fixed `computeNextFrontier` fail-edge OR triggering for recovery nodes with multiple upstream failure sources and enabled multi-iteration `restore` re-arming within rework budget.
 - Added standalone pure-Node loopback web launcher (`scripts/serve-web.mjs` via `npm run start:web`).

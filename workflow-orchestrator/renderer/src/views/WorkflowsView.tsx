@@ -78,7 +78,7 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
   const [importMd, setImportMd] = useState(DEFAULT_IMPORT_MD);
   const [importTier, setImportTier] = useState<PermissionTier>('supervised');
   const [importVerifyCmd, setImportVerifyCmd] = useState(
-    'node -e "console.log(\'Gate OK\')"',
+    'echo Verification gate passed',
   );
 
   // Draft Node Editor form

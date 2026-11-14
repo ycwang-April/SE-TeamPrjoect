@@ -172,7 +172,7 @@ export class OrchestratorStore {
       name: 'Sample Ledger Workspace',
       rootPath: sampleWorkspacePath,
       defaultBranch: 'main',
-      verifyCommand: 'node -e "console.log(\'Verification gate passed\')"',
+      verifyCommand: 'echo Verification gate passed',
       description:
         'Pre-seeded sample Git workspace for exploring Requirements-to-Execution workflow orchestration.',
     });
@@ -292,8 +292,7 @@ export class OrchestratorStore {
       name: input.name,
       rootPath: input.rootPath,
       defaultBranch: input.defaultBranch ?? 'main',
-      verifyCommand:
-        input.verifyCommand ?? 'node -e "console.log(\'Gate OK\')"',
+      verifyCommand: input.verifyCommand ?? 'echo Verification gate passed',
       description: input.description ?? '',
       createdAt: now,
     };

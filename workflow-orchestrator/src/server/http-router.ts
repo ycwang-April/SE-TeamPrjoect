@@ -335,7 +335,7 @@ export class OrchestratorHttpServer {
           verifyCommand: optString(
             rec,
             'verifyCommand',
-            'node -e "console.log(\'Gate passed\')"',
+            'echo Verification gate passed',
             512,
           ),
           description: optString(rec, 'description', '', 2048),

@@ -5,6 +5,7 @@ export default [
     ignores: [
       'dist/**',
       'renderer/dist/**',
+      'release/**',
       'node_modules/**',
       '.orchestrator/**',
     ],
