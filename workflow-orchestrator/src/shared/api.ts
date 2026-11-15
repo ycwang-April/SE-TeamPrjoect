@@ -4,22 +4,30 @@
 
 import type {
   AuditLedgerEntry,
+  BuiltinDesignSpecPreset,
   CapabilityAdapterManifest,
   CapabilityHealthProfile,
   ChangeImpactReport,
   CheckpointRecord,
+  ConstitutionRule,
+  DomainTermEntry,
   GoalSpec,
   GraphEdge,
   GraphNode,
   InterventionItem,
+  McpServerEntry,
   ModelProviderConfig,
   NodeAttemptRecord,
   PermissionTier,
+  PmDecompositionReport,
+  RehydrationCapsule,
+  SkillEntry,
   SlotLoadSnapshot,
   TranscriptMessage,
   TranscriptSession,
   TrialRunReport,
   ValidationReport,
+  WorkflowCustomization,
   WorkflowRecord,
   WorkflowRunRecord,
   WorkflowVersionSnapshot,
@@ -70,6 +78,12 @@ export interface BootstrapSnapshot {
   readonly capabilityHealth: readonly CapabilityHealthProfile[];
   readonly modelProviders: readonly ModelProviderConfig[];
   readonly recentAudit: readonly AuditLedgerEntry[];
+  readonly domainTerms: readonly DomainTermEntry[];
+  readonly skills: readonly SkillEntry[];
+  readonly mcpServers: readonly McpServerEntry[];
+  readonly constitution: ConstitutionRule;
+  readonly rehydrationCapsules: readonly RehydrationCapsule[];
+  readonly designSpecPresets: readonly BuiltinDesignSpecPreset[];
 }
 
 export interface WorkflowDetailSnapshot {
@@ -80,6 +94,7 @@ export interface WorkflowDetailSnapshot {
   readonly validation: ValidationReport;
   readonly latestTrial: TrialRunReport | null;
   readonly lastImpact: ChangeImpactReport | null;
+  readonly pmReport: PmDecompositionReport | null;
   readonly versions: readonly WorkflowVersionSnapshot[];
 }
 
@@ -93,6 +108,7 @@ export interface RunDetailSnapshot {
   readonly interventions: readonly InterventionItem[];
   readonly sessions: readonly TranscriptSession[];
   readonly recentAudit: readonly AuditLedgerEntry[];
+  readonly rehydrationCapsule?: RehydrationCapsule | null;
 }
 
 export interface ImportRequirementsRequest {
@@ -103,6 +119,16 @@ export interface ImportRequirementsRequest {
   readonly permissionTier?: PermissionTier;
   readonly maxReworkIterations?: number;
   readonly preferAiPlanner?: boolean;
+  readonly customization?: Partial<WorkflowCustomization>;
+}
+
+export interface ExportWorkflowPlanResponse {
+  readonly workflowId: string;
+  readonly code: string;
+  readonly title: string;
+  readonly markdown: string;
+  readonly mermaid: string;
+  readonly json: Record<string, unknown>;
 }
 
 export interface UpdateGoalSpecRequest {

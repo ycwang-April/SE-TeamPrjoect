@@ -15,6 +15,7 @@ import type {
   CapabilityAdapterManifest,
   CapabilityHealthProfile,
   ChangeImpactReport,
+  DomainTermEntry,
   GoalSpec,
   GraphEdge,
   GraphNode,
@@ -22,6 +23,7 @@ import type {
   ValidationIssue,
   ValidationReport,
 } from '../shared/types.ts';
+import {detectTerminologyDrift} from './ddd.ts';
 import {computeDownstreamBlastRadius, hasForwardCycle} from './twin-graph.ts';
 
 function issue(
@@ -62,6 +64,8 @@ export function validateWorkflowSpec(input: {
   readonly healthProfiles: readonly CapabilityHealthProfile[];
   readonly permissionTier: PermissionTier;
   readonly maxReworkIterations: number;
+  readonly domainTerms?: readonly DomainTermEntry[];
+  readonly dddStrictCheck?: boolean;
 }): ValidationReport {
   const issues: ValidationIssue[] = [];
   const execNodes = input.nodes.filter(n => n.kind !== 'phase_container');
@@ -341,6 +345,45 @@ export function validateWorkflowSpec(input: {
             `Parallel sibling tasks ${a.code} and ${b.code} have overlapping fileScope ("${conflict}").`,
             'Disjoint fileScopes eliminate race conditions during concurrent execution.',
             b.code,
+          ),
+        );
+      }
+    }
+  }
+
+  // Level 4: DDD Ubiquitous Language terminology drift check
+  if (
+    input.dddStrictCheck !== false &&
+    input.domainTerms &&
+    input.domainTerms.length > 0
+  ) {
+    const goalAndReqText = [
+      input.goalSpec.goal,
+      ...input.goalSpec.requirements.map(r => `${r.title} ${r.description}`),
+    ].join('\n');
+    for (const drift of detectTerminologyDrift(
+      goalAndReqText,
+      input.domainTerms,
+    )) {
+      issues.push(
+        issue(
+          'warning',
+          'ddd_drift',
+          `DDD terminology drift in GoalSpec (${drift.boundedContext}): found discouraged alias "${drift.matchedAlias}" instead of "${drift.canonicalTerm}".`,
+          `Replace "${drift.matchedAlias}" with canonical DDD term "${drift.canonicalTerm}".`,
+        ),
+      );
+    }
+    for (const node of execNodes) {
+      const nodeText = `${node.title} ${node.description} ${node.outputContract}`;
+      for (const drift of detectTerminologyDrift(nodeText, input.domainTerms)) {
+        issues.push(
+          issue(
+            'warning',
+            'ddd_drift',
+            `Node ${node.code} uses discouraged alias "${drift.matchedAlias}" instead of canonical DDD term "${drift.canonicalTerm}".`,
+            `Rename to "${drift.canonicalTerm}" to prevent semantic drift across agents.`,
+            node.code,
           ),
         );
       }

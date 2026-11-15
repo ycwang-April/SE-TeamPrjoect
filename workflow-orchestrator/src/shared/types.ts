@@ -86,6 +86,54 @@ export interface GoalAssumption {
   readonly rationale: string;
 }
 
+export type WorkflowTemplatePreset =
+  'fullstack_se' | 'microservice_hardened' | 'rapid_ui_api' | 'custom';
+
+export interface WorkflowCustomization {
+  readonly templatePreset: WorkflowTemplatePreset;
+  readonly includeHumanGate: boolean;
+  readonly includeSecurityPass: boolean;
+  readonly includeQaAudit: boolean;
+  readonly maxParallelWorkers: number;
+  readonly dddStrictCheck: boolean;
+  readonly pmAgentMode: 'hybrid_llm' | 'structural';
+  readonly budgetUsdLimit: number;
+}
+
+export interface DesignSpecModule {
+  readonly name: string;
+  readonly layer:
+    'contract' | 'backend' | 'frontend' | 'data' | 'security' | 'integration';
+  readonly summary: string;
+  readonly artifacts: readonly string[];
+  readonly relatedFrCodes: readonly string[];
+}
+
+export interface PmDecompositionSlice {
+  readonly code: string;
+  readonly title: string;
+  readonly phase: 'P1' | 'P2' | 'P3';
+  readonly layer: DesignSpecModule['layer'];
+  readonly requirementRefs: readonly string[];
+  readonly dependsOnCodes: readonly string[];
+  readonly assignedRole: AgentRole;
+  readonly executorKind: ExecutorKind;
+  readonly fileScope: readonly string[];
+  readonly rationale: string;
+}
+
+export interface PmDecompositionReport {
+  readonly id: string;
+  readonly workflowId: string;
+  readonly mode: 'llm_assisted' | 'structural_pm';
+  readonly templatePreset: WorkflowTemplatePreset;
+  readonly detectedModules: readonly DesignSpecModule[];
+  readonly slices: readonly PmDecompositionSlice[];
+  readonly pmNarrative: string;
+  readonly skillsApplied: readonly string[];
+  readonly createdAt: string;
+}
+
 export interface GoalSpec {
   readonly id: string;
   readonly workflowId: string;
@@ -96,6 +144,7 @@ export interface GoalSpec {
   readonly outputs: readonly string[];
   readonly constraints: readonly string[];
   readonly domainRules: readonly string[];
+  readonly modules?: readonly DesignSpecModule[];
   readonly requirements: readonly GoalRequirement[];
   readonly acceptanceCriteria: readonly AcceptanceCriterion[];
   readonly assumptions: readonly GoalAssumption[];
@@ -154,7 +203,8 @@ export type ValidationCategory =
   | 'contract'
   | 'capability'
   | 'policy'
-  | 'conflict';
+  | 'conflict'
+  | 'ddd_drift';
 
 export interface ValidationIssue {
   readonly id: string;
@@ -233,6 +283,9 @@ export interface WorkflowRecord {
   readonly permissionTier: PermissionTier;
   readonly verifyCommand: string;
   readonly maxReworkIterations: number;
+  readonly customization?: WorkflowCustomization;
+  readonly lastHumanReviewedAt?: string;
+  readonly spacedReviewCount?: number;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -270,6 +323,11 @@ export interface WorkflowRunRecord {
   readonly completedNodes: number;
   readonly failedNodes: number;
   readonly skippedNodes: number;
+  readonly budgetUsdLimit?: number;
+  readonly spentUsd?: number;
+  readonly inputTokens?: number;
+  readonly cachedTokens?: number;
+  readonly outputTokens?: number;
   readonly startedAt: string;
   readonly finishedAt: string | null;
   readonly updatedAt: string;
@@ -287,6 +345,10 @@ export interface NodeAttemptRecord {
   readonly status: 'running' | 'succeeded' | 'failed' | 'skipped';
   readonly exitCode: number | null;
   readonly durationSec: number;
+  readonly inputTokens?: number;
+  readonly cachedTokens?: number;
+  readonly outputTokens?: number;
+  readonly costUsd?: number;
   readonly inputSnapshotJson: string;
   readonly outputSummary: string;
   readonly errorMessage: string;
@@ -437,11 +499,85 @@ export interface AuditLedgerEntry {
     | 'execution'
     | 'checkpoint'
     | 'intervention'
-    | 'capability';
+    | 'capability'
+    | 'governance'
+    | 'dreaming';
   readonly author: string;
   readonly title: string;
   readonly detail: string;
   readonly createdAt: string;
+}
+
+export interface DomainTermEntry {
+  readonly id: string;
+  readonly workspaceId: string;
+  readonly boundedContext: string;
+  readonly canonicalTerm: string;
+  readonly localLabel: string;
+  readonly definition: string;
+  readonly forbiddenAliases: readonly string[];
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface SkillEntry {
+  readonly id: string;
+  readonly slug: string;
+  readonly title: string;
+  readonly category: 'pm_plan' | 'backend' | 'frontend' | 'qa' | 'governance';
+  readonly content: string;
+  readonly timesUsed: number;
+  readonly stabilityHours: number;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface McpServerEntry {
+  readonly id: string;
+  readonly name: string;
+  readonly transport: 'stdio' | 'http';
+  readonly endpointOrCommand: string;
+  readonly description: string;
+  readonly enabled: boolean;
+  readonly toolsCount: number;
+  readonly status: 'ready' | 'untested' | 'offline';
+  readonly updatedAt: string;
+}
+
+export interface ConstitutionRule {
+  readonly id: string;
+  readonly markdown: string;
+  readonly blockedCommands: readonly string[];
+  readonly updatedAt: string;
+}
+
+export type RehydrationTier = 'warm' | 'delta_30s' | 'deep_reanchor';
+
+export interface RehydrationCapsule {
+  readonly workflowId: string;
+  readonly workflowTitle: string;
+  readonly workflowCode: string;
+  readonly retentionScore: number;
+  readonly stabilityHours: number;
+  readonly elapsedHours: number;
+  readonly mutationEntropy: number;
+  readonly tier: RehydrationTier;
+  readonly northStarGoal: string;
+  readonly lastHumanAnchor: string;
+  readonly autonomousDeltaBullets: readonly string[];
+  readonly lockedDecisions: readonly string[];
+  readonly nextDecisionPrompt: string | null;
+  readonly generatedAt: string;
+}
+
+export interface BuiltinDesignSpecPreset {
+  readonly id: string;
+  readonly nameZh: string;
+  readonly nameEn: string;
+  readonly categoryZh: string;
+  readonly categoryEn: string;
+  readonly recommendedTemplate: WorkflowTemplatePreset;
+  readonly markdown: string;
 }
 
 export interface SlotLoadSnapshot {
