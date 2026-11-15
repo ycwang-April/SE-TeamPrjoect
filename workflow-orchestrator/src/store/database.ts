@@ -24,6 +24,8 @@ import type {
   CapabilityHealthProfile,
   ChangeImpactReport,
   CheckpointRecord,
+  ConstitutionRule,
+  DomainTermEntry,
   ExecutorKind,
   GoalSpec,
   GraphEdge,
@@ -31,14 +33,18 @@ import type {
   GraphNode,
   GraphNodeStatus,
   InterventionItem,
+  McpServerEntry,
   ModelCatalogEntry,
   ModelProviderConfig,
   NodeAttemptRecord,
   PermissionTier,
+  PmDecompositionReport,
   RunStatus,
+  SkillEntry,
   TranscriptMessage,
   TranscriptSession,
   TrialRunReport,
+  WorkflowCustomization,
   WorkflowNodeKind,
   WorkflowRecord,
   WorkflowRunRecord,
@@ -48,7 +54,11 @@ import type {
 } from '../shared/types.ts';
 import {
   BUILTIN_CAPABILITIES,
+  DEFAULT_CONSTITUTION_RULE,
+  DEFAULT_DOMAIN_TERMS,
+  DEFAULT_MCP_SERVERS,
   DEFAULT_MODEL_PROVIDERS,
+  DEFAULT_SKILLS,
   INITIAL_SCHEMA_SQL,
   SAMPLE_REQUIREMENTS_MARKDOWN,
   SCHEMA_VERSION,
@@ -85,8 +95,50 @@ export class OrchestratorStore {
     mkdirSync(dirname(dbPath), {recursive: true});
     this.db = new DatabaseSync(dbPath);
     this.db.exec(INITIAL_SCHEMA_SQL);
+    this.ensureColumnMigrations();
     this.ensureSchemaVersion();
     this.seedBuiltins();
+  }
+
+  private ensureColumnMigrations(): void {
+    const ensureCols = (
+      table: string,
+      columns: readonly {readonly name: string; readonly def: string}[],
+    ): void => {
+      const existing = new Set(
+        (
+          this.db.prepare(`PRAGMA table_info(${table})`).all() as {
+            name: string;
+          }[]
+        ).map(c => c.name),
+      );
+      for (const col of columns) {
+        if (!existing.has(col.name)) {
+          this.db.exec(
+            `ALTER TABLE ${table} ADD COLUMN ${col.name} ${col.def}`,
+          );
+        }
+      }
+    };
+
+    ensureCols('workflows', [
+      {name: 'customization_json', def: 'TEXT'},
+      {name: 'last_human_reviewed_at', def: 'TEXT'},
+      {name: 'spaced_review_count', def: 'INTEGER NOT NULL DEFAULT 0'},
+    ]);
+    ensureCols('workflow_runs', [
+      {name: 'budget_usd_limit', def: 'REAL NOT NULL DEFAULT 2.5'},
+      {name: 'spent_usd', def: 'REAL NOT NULL DEFAULT 0'},
+      {name: 'total_input_tokens', def: 'INTEGER NOT NULL DEFAULT 0'},
+      {name: 'total_cached_tokens', def: 'INTEGER NOT NULL DEFAULT 0'},
+      {name: 'total_output_tokens', def: 'INTEGER NOT NULL DEFAULT 0'},
+    ]);
+    ensureCols('node_attempts', [
+      {name: 'input_tokens', def: 'INTEGER NOT NULL DEFAULT 0'},
+      {name: 'cached_tokens', def: 'INTEGER NOT NULL DEFAULT 0'},
+      {name: 'output_tokens', def: 'INTEGER NOT NULL DEFAULT 0'},
+      {name: 'cost_usd', def: 'REAL NOT NULL DEFAULT 0'},
+    ]);
   }
 
   close(): void {
@@ -146,6 +198,76 @@ export class OrchestratorStore {
         now,
       );
     }
+
+    const insertTerm = this.db.prepare(
+      `INSERT OR IGNORE INTO domain_terms (
+        id, workspace_id, bounded_context, canonical_term, local_label,
+        definition, forbidden_aliases_json, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    for (const term of DEFAULT_DOMAIN_TERMS) {
+      insertTerm.run(
+        term.id,
+        'global',
+        term.boundedContext,
+        term.canonicalTerm,
+        term.localLabel,
+        term.definition,
+        JSON.stringify(term.forbiddenAliases),
+        now,
+        now,
+      );
+    }
+
+    const insertSkill = this.db.prepare(
+      `INSERT OR IGNORE INTO skills (
+        id, slug, title, category, content, times_used, stability_hours, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    for (const skill of DEFAULT_SKILLS) {
+      insertSkill.run(
+        skill.id,
+        skill.slug,
+        skill.title,
+        skill.category,
+        skill.content,
+        skill.timesUsed,
+        skill.stabilityHours,
+        now,
+        now,
+      );
+    }
+
+    const insertMcp = this.db.prepare(
+      `INSERT OR IGNORE INTO mcp_servers (
+        id, name, transport, endpoint_or_command, description, enabled, tools_count, status, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    for (const srv of DEFAULT_MCP_SERVERS) {
+      insertMcp.run(
+        srv.id,
+        srv.name,
+        srv.transport,
+        srv.endpointOrCommand,
+        srv.description,
+        srv.enabled ? 1 : 0,
+        srv.toolsCount,
+        srv.status,
+        now,
+      );
+    }
+
+    this.db
+      .prepare(
+        `INSERT OR IGNORE INTO constitution_rules (id, markdown, blocked_commands_json, updated_at)
+         VALUES (?, ?, ?, ?)`,
+      )
+      .run(
+        DEFAULT_CONSTITUTION_RULE.id,
+        DEFAULT_CONSTITUTION_RULE.markdown,
+        JSON.stringify(DEFAULT_CONSTITUTION_RULE.blockedCommands),
+        now,
+      );
   }
 
   savepoint<T>(fn: () => T): T {
@@ -316,6 +438,12 @@ export class OrchestratorStore {
   // ---- Workflows, GoalSpec, Reports & Versions ----
 
   private mapWorkflowRow(r: Record<string, unknown>): WorkflowRecord {
+    const customization = r['customization_json']
+      ? parseJson<WorkflowCustomization | undefined>(
+          String(r['customization_json']),
+          undefined,
+        )
+      : undefined;
     return {
       id: String(r['id']),
       workspaceId: String(r['workspace_id']),
@@ -327,6 +455,11 @@ export class OrchestratorStore {
       permissionTier: String(r['permission_tier']) as PermissionTier,
       verifyCommand: String(r['verify_command']),
       maxReworkIterations: Number(r['max_rework_iterations'] ?? 3),
+      customization,
+      lastHumanReviewedAt: r['last_human_reviewed_at']
+        ? String(r['last_human_reviewed_at'])
+        : undefined,
+      spacedReviewCount: Number(r['spaced_review_count'] ?? 0),
       createdAt: String(r['created_at']),
       updatedAt: String(r['updated_at']),
     };
@@ -357,6 +490,7 @@ export class OrchestratorStore {
     readonly permissionTier: PermissionTier;
     readonly verifyCommand: string;
     readonly maxReworkIterations: number;
+    readonly customization?: WorkflowCustomization;
   }): WorkflowRecord {
     const existingCount = (
       this.db.prepare('SELECT COUNT(*) as c FROM workflows').get() as {
@@ -375,13 +509,20 @@ export class OrchestratorStore {
       permissionTier: input.permissionTier,
       verifyCommand: input.verifyCommand,
       maxReworkIterations: input.maxReworkIterations,
+      customization: input.customization,
+      lastHumanReviewedAt: now,
+      spacedReviewCount: 0,
       createdAt: now,
       updatedAt: now,
     };
     this.db
       .prepare(
-        `INSERT INTO workflows (id, workspace_id, code, title, description, status, current_version_number, permission_tier, verify_command, max_rework_iterations, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO workflows (
+          id, workspace_id, code, title, description, status,
+          current_version_number, permission_tier, verify_command,
+          max_rework_iterations, customization_json, last_human_reviewed_at,
+          spaced_review_count, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         record.id,
@@ -394,6 +535,9 @@ export class OrchestratorStore {
         record.permissionTier,
         record.verifyCommand,
         record.maxReworkIterations,
+        record.customization ? JSON.stringify(record.customization) : null,
+        record.lastHumanReviewedAt ?? now,
+        record.spacedReviewCount ?? 0,
         record.createdAt,
         record.updatedAt,
       );
@@ -410,6 +554,9 @@ export class OrchestratorStore {
       readonly permissionTier: PermissionTier;
       readonly verifyCommand: string;
       readonly maxReworkIterations: number;
+      readonly customization: WorkflowCustomization;
+      readonly lastHumanReviewedAt: string;
+      readonly spacedReviewCount: number;
     }>,
   ): WorkflowRecord {
     const curr = this.getWorkflow(id);
@@ -425,12 +572,17 @@ export class OrchestratorStore {
       verifyCommand: patch.verifyCommand ?? curr.verifyCommand,
       maxReworkIterations:
         patch.maxReworkIterations ?? curr.maxReworkIterations,
+      customization: patch.customization ?? curr.customization,
+      lastHumanReviewedAt:
+        patch.lastHumanReviewedAt ?? curr.lastHumanReviewedAt,
+      spacedReviewCount: patch.spacedReviewCount ?? curr.spacedReviewCount,
       updatedAt: now,
     };
     this.db
       .prepare(
         `UPDATE workflows SET title = ?, description = ?, status = ?, current_version_number = ?,
-         permission_tier = ?, verify_command = ?, max_rework_iterations = ?, updated_at = ?
+         permission_tier = ?, verify_command = ?, max_rework_iterations = ?,
+         customization_json = ?, last_human_reviewed_at = ?, spaced_review_count = ?, updated_at = ?
          WHERE id = ?`,
       )
       .run(
@@ -441,10 +593,22 @@ export class OrchestratorStore {
         next.permissionTier,
         next.verifyCommand,
         next.maxReworkIterations,
+        next.customization ? JSON.stringify(next.customization) : null,
+        next.lastHumanReviewedAt ?? null,
+        next.spacedReviewCount ?? 0,
         next.updatedAt,
         id,
       );
     return next;
+  }
+
+  markWorkflowReviewed(id: string): WorkflowRecord {
+    const curr = this.getWorkflow(id);
+    const now = new Date().toISOString();
+    return this.updateWorkflowMeta(id, {
+      lastHumanReviewedAt: now,
+      spacedReviewCount: (curr.spacedReviewCount ?? 0) + 1,
+    });
   }
 
   saveGoalSpec(spec: GoalSpec): void {
@@ -803,6 +967,11 @@ export class OrchestratorStore {
       completedNodes: Number(r['completed_nodes'] ?? 0),
       failedNodes: Number(r['failed_nodes'] ?? 0),
       skippedNodes: Number(r['skipped_nodes'] ?? 0),
+      budgetUsdLimit: Number(r['budget_usd_limit'] ?? 2.5),
+      spentUsd: Number(r['spent_usd'] ?? 0),
+      inputTokens: Number(r['total_input_tokens'] ?? 0),
+      cachedTokens: Number(r['total_cached_tokens'] ?? 0),
+      outputTokens: Number(r['total_output_tokens'] ?? 0),
       startedAt: String(r['started_at']),
       finishedAt: r['finished_at'] ? String(r['finished_at']) : null,
       updatedAt: String(r['updated_at']),
@@ -839,8 +1008,10 @@ export class OrchestratorStore {
           id, workflow_id, version_id, version_tag, title, status, permission_tier,
           worktree_path, git_branch, base_commit_sha, verify_command,
           max_rework_iterations, rework_count, total_nodes, completed_nodes,
-          failed_nodes, skipped_nodes, started_at, finished_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          failed_nodes, skipped_nodes, budget_usd_limit, spent_usd,
+          total_input_tokens, total_cached_tokens, total_output_tokens,
+          started_at, finished_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         run.id,
@@ -860,6 +1031,11 @@ export class OrchestratorStore {
         run.completedNodes,
         run.failedNodes,
         run.skippedNodes,
+        run.budgetUsdLimit ?? 2.5,
+        run.spentUsd ?? 0,
+        run.inputTokens ?? 0,
+        run.cachedTokens ?? 0,
+        run.outputTokens ?? 0,
         run.startedAt,
         run.finishedAt,
         run.updatedAt,
@@ -879,6 +1055,10 @@ export class OrchestratorStore {
       readonly completedNodes: number;
       readonly failedNodes: number;
       readonly skippedNodes: number;
+      readonly spentUsd: number;
+      readonly inputTokens: number;
+      readonly cachedTokens: number;
+      readonly outputTokens: number;
       readonly finishedAt: string | null;
     }>,
   ): WorkflowRunRecord {
@@ -895,6 +1075,10 @@ export class OrchestratorStore {
       completedNodes: patch.completedNodes ?? curr.completedNodes,
       failedNodes: patch.failedNodes ?? curr.failedNodes,
       skippedNodes: patch.skippedNodes ?? curr.skippedNodes,
+      spentUsd: patch.spentUsd ?? curr.spentUsd,
+      inputTokens: patch.inputTokens ?? curr.inputTokens,
+      cachedTokens: patch.cachedTokens ?? curr.cachedTokens,
+      outputTokens: patch.outputTokens ?? curr.outputTokens,
       finishedAt:
         patch.finishedAt !== undefined ? patch.finishedAt : curr.finishedAt,
       updatedAt: now,
@@ -903,7 +1087,8 @@ export class OrchestratorStore {
       .prepare(
         `UPDATE workflow_runs SET status = ?, worktree_path = ?, git_branch = ?,
          base_commit_sha = ?, rework_count = ?, total_nodes = ?, completed_nodes = ?,
-         failed_nodes = ?, skipped_nodes = ?, finished_at = ?, updated_at = ?
+         failed_nodes = ?, skipped_nodes = ?, spent_usd = ?, total_input_tokens = ?,
+         total_cached_tokens = ?, total_output_tokens = ?, finished_at = ?, updated_at = ?
          WHERE id = ?`,
       )
       .run(
@@ -916,6 +1101,10 @@ export class OrchestratorStore {
         next.completedNodes,
         next.failedNodes,
         next.skippedNodes,
+        next.spentUsd ?? 0,
+        next.inputTokens ?? 0,
+        next.cachedTokens ?? 0,
+        next.outputTokens ?? 0,
         next.finishedAt,
         next.updatedAt,
         runId,
@@ -947,14 +1136,19 @@ export class OrchestratorStore {
           id, run_id, node_id, node_code, attempt_number, executor_kind,
           capability_id, model, status, exit_code, duration_sec,
           input_snapshot_json, output_summary, error_message, session_id,
+          input_tokens, cached_tokens, output_tokens, cost_usd,
           started_at, finished_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           status = excluded.status,
           exit_code = excluded.exit_code,
           duration_sec = excluded.duration_sec,
           output_summary = excluded.output_summary,
           error_message = excluded.error_message,
+          input_tokens = excluded.input_tokens,
+          cached_tokens = excluded.cached_tokens,
+          output_tokens = excluded.output_tokens,
+          cost_usd = excluded.cost_usd,
           finished_at = excluded.finished_at`,
       )
       .run(
@@ -973,6 +1167,10 @@ export class OrchestratorStore {
         attempt.outputSummary,
         attempt.errorMessage,
         attempt.sessionId,
+        attempt.inputTokens ?? 0,
+        attempt.cachedTokens ?? 0,
+        attempt.outputTokens ?? 0,
+        attempt.costUsd ?? 0,
         attempt.startedAt,
         attempt.finishedAt,
       );
@@ -1010,6 +1208,10 @@ export class OrchestratorStore {
       outputSummary: String(r['output_summary'] ?? ''),
       errorMessage: String(r['error_message'] ?? ''),
       sessionId: r['session_id'] ? String(r['session_id']) : null,
+      inputTokens: Number(r['input_tokens'] ?? 0),
+      cachedTokens: Number(r['cached_tokens'] ?? 0),
+      outputTokens: Number(r['output_tokens'] ?? 0),
+      costUsd: Number(r['cost_usd'] ?? 0),
       startedAt: String(r['started_at']),
       finishedAt: r['finished_at'] ? String(r['finished_at']) : null,
     }));
@@ -1561,5 +1763,332 @@ export class OrchestratorStore {
     }
 
     return hits.slice(0, limit);
+  }
+
+  // ---- PM Reports, DDD Glossary, SkillsBank, MCP Pool & Constitution ----
+
+  savePmReport(report: PmDecompositionReport): void {
+    this.db
+      .prepare(
+        `INSERT INTO pm_reports (workflow_id, payload_json, created_at)
+         VALUES (?, ?, ?)
+         ON CONFLICT(workflow_id) DO UPDATE SET
+           payload_json = excluded.payload_json,
+           created_at = excluded.created_at`,
+      )
+      .run(report.workflowId, JSON.stringify(report), report.createdAt);
+  }
+
+  getPmReport(workflowId: string): PmDecompositionReport | null {
+    const row = this.db
+      .prepare('SELECT payload_json FROM pm_reports WHERE workflow_id = ?')
+      .get(workflowId) as {payload_json: string} | undefined;
+    return row
+      ? parseJson<PmDecompositionReport | null>(row.payload_json, null)
+      : null;
+  }
+
+  listDomainTerms(workspaceId?: string): DomainTermEntry[] {
+    const rows = workspaceId
+      ? (this.db
+          .prepare(
+            "SELECT * FROM domain_terms WHERE workspace_id IN ('global', ?) ORDER BY canonical_term ASC",
+          )
+          .all(workspaceId) as Record<string, unknown>[])
+      : (this.db
+          .prepare('SELECT * FROM domain_terms ORDER BY canonical_term ASC')
+          .all() as Record<string, unknown>[]);
+    return rows.map(r => ({
+      id: String(r['id']),
+      workspaceId: String(r['workspace_id'] ?? 'global'),
+      boundedContext: String(r['bounded_context']),
+      canonicalTerm: String(r['canonical_term']),
+      localLabel: String(r['local_label'] ?? ''),
+      definition: String(r['definition'] ?? ''),
+      forbiddenAliases: parseJson<string[]>(
+        String(r['forbidden_aliases_json'] ?? '[]'),
+        [],
+      ),
+      createdAt: String(r['created_at']),
+      updatedAt: String(r['updated_at']),
+    }));
+  }
+
+  upsertDomainTerm(input: {
+    readonly id?: string;
+    readonly workspaceId?: string;
+    readonly boundedContext: string;
+    readonly canonicalTerm: string;
+    readonly localLabel?: string;
+    readonly definition: string;
+    readonly forbiddenAliases: readonly string[];
+  }): DomainTermEntry {
+    const now = new Date().toISOString();
+    const id = input.id?.trim() || `ddd-${randomUUID().slice(0, 8)}`;
+    const entry: DomainTermEntry = {
+      id,
+      workspaceId: input.workspaceId?.trim() || 'global',
+      boundedContext: input.boundedContext.trim() || 'General',
+      canonicalTerm: input.canonicalTerm.trim(),
+      localLabel: input.localLabel?.trim() ?? '',
+      definition: input.definition.trim(),
+      forbiddenAliases: input.forbiddenAliases
+        .map(a => a.trim())
+        .filter(Boolean),
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.db
+      .prepare(
+        `INSERT INTO domain_terms (
+          id, workspace_id, bounded_context, canonical_term, local_label,
+          definition, forbidden_aliases_json, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          workspace_id = excluded.workspace_id,
+          bounded_context = excluded.bounded_context,
+          canonical_term = excluded.canonical_term,
+          local_label = excluded.local_label,
+          definition = excluded.definition,
+          forbidden_aliases_json = excluded.forbidden_aliases_json,
+          updated_at = excluded.updated_at`,
+      )
+      .run(
+        entry.id,
+        entry.workspaceId,
+        entry.boundedContext,
+        entry.canonicalTerm,
+        entry.localLabel,
+        entry.definition,
+        JSON.stringify(entry.forbiddenAliases),
+        entry.createdAt,
+        entry.updatedAt,
+      );
+    return entry;
+  }
+
+  deleteDomainTerm(id: string): void {
+    this.db.prepare('DELETE FROM domain_terms WHERE id = ?').run(id);
+  }
+
+  listSkills(): SkillEntry[] {
+    const rows = this.db
+      .prepare(
+        'SELECT * FROM skills ORDER BY times_used DESC, stability_hours DESC',
+      )
+      .all() as Record<string, unknown>[];
+    return rows.map(r => ({
+      id: String(r['id']),
+      slug: String(r['slug']),
+      title: String(r['title']),
+      category: String(r['category']) as SkillEntry['category'],
+      content: String(r['content']),
+      timesUsed: Number(r['times_used'] ?? 0),
+      stabilityHours: Number(r['stability_hours'] ?? 24),
+      createdAt: String(r['created_at']),
+      updatedAt: String(r['updated_at']),
+    }));
+  }
+
+  upsertSkill(input: {
+    readonly id?: string;
+    readonly slug: string;
+    readonly title: string;
+    readonly category: SkillEntry['category'];
+    readonly content: string;
+    readonly timesUsed?: number;
+    readonly stabilityHours?: number;
+  }): SkillEntry {
+    const now = new Date().toISOString();
+    const id = input.id?.trim() || `skill-${randomUUID().slice(0, 8)}`;
+    const entry: SkillEntry = {
+      id,
+      slug: input.slug.trim(),
+      title: input.title.trim(),
+      category: input.category,
+      content: input.content.trim(),
+      timesUsed: input.timesUsed ?? 1,
+      stabilityHours: input.stabilityHours ?? 32,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.db
+      .prepare(
+        `INSERT INTO skills (
+          id, slug, title, category, content, times_used, stability_hours, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(slug) DO UPDATE SET
+          title = excluded.title,
+          category = excluded.category,
+          content = excluded.content,
+          times_used = MAX(skills.times_used, excluded.times_used),
+          stability_hours = MAX(skills.stability_hours, excluded.stability_hours),
+          updated_at = excluded.updated_at`,
+      )
+      .run(
+        entry.id,
+        entry.slug,
+        entry.title,
+        entry.category,
+        entry.content,
+        entry.timesUsed,
+        entry.stabilityHours,
+        entry.createdAt,
+        entry.updatedAt,
+      );
+    return this.listSkills().find(s => s.slug === entry.slug) ?? entry;
+  }
+
+  incrementSkillUsage(id: string, nextStabilityHours: number): void {
+    const now = new Date().toISOString();
+    this.db
+      .prepare(
+        'UPDATE skills SET times_used = times_used + 1, stability_hours = ?, updated_at = ? WHERE id = ?',
+      )
+      .run(nextStabilityHours, now, id);
+  }
+
+  listMcpServers(): McpServerEntry[] {
+    const rows = this.db
+      .prepare('SELECT * FROM mcp_servers ORDER BY name ASC')
+      .all() as Record<string, unknown>[];
+    return rows.map(r => ({
+      id: String(r['id']),
+      name: String(r['name']),
+      transport: String(r['transport']) as McpServerEntry['transport'],
+      endpointOrCommand: String(r['endpoint_or_command']),
+      description: String(r['description'] ?? ''),
+      enabled: Boolean(r['enabled']),
+      toolsCount: Number(r['tools_count'] ?? 0),
+      status: String(r['status']) as McpServerEntry['status'],
+      updatedAt: String(r['updated_at']),
+    }));
+  }
+
+  upsertMcpServer(input: {
+    readonly id?: string;
+    readonly name: string;
+    readonly transport: McpServerEntry['transport'];
+    readonly endpointOrCommand: string;
+    readonly description?: string;
+    readonly enabled?: boolean;
+    readonly toolsCount?: number;
+    readonly status?: McpServerEntry['status'];
+  }): McpServerEntry {
+    const now = new Date().toISOString();
+    const id = input.id?.trim() || `mcp-${randomUUID().slice(0, 8)}`;
+    const entry: McpServerEntry = {
+      id,
+      name: input.name.trim(),
+      transport: input.transport,
+      endpointOrCommand: input.endpointOrCommand.trim(),
+      description: input.description?.trim() ?? '',
+      enabled: input.enabled ?? true,
+      toolsCount: input.toolsCount ?? 2,
+      status: input.status ?? 'untested',
+      updatedAt: now,
+    };
+    this.db
+      .prepare(
+        `INSERT INTO mcp_servers (
+          id, name, transport, endpoint_or_command, description, enabled, tools_count, status, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          name = excluded.name,
+          transport = excluded.transport,
+          endpoint_or_command = excluded.endpoint_or_command,
+          description = excluded.description,
+          enabled = excluded.enabled,
+          tools_count = excluded.tools_count,
+          status = excluded.status,
+          updated_at = excluded.updated_at`,
+      )
+      .run(
+        entry.id,
+        entry.name,
+        entry.transport,
+        entry.endpointOrCommand,
+        entry.description,
+        entry.enabled ? 1 : 0,
+        entry.toolsCount,
+        entry.status,
+        entry.updatedAt,
+      );
+    return entry;
+  }
+
+  setMcpServerStatus(
+    id: string,
+    status: McpServerEntry['status'],
+    toolsCount?: number,
+  ): McpServerEntry {
+    const now = new Date().toISOString();
+    if (toolsCount !== undefined) {
+      this.db
+        .prepare(
+          'UPDATE mcp_servers SET status = ?, tools_count = ?, updated_at = ? WHERE id = ?',
+        )
+        .run(status, toolsCount, now, id);
+    } else {
+      this.db
+        .prepare(
+          'UPDATE mcp_servers SET status = ?, updated_at = ? WHERE id = ?',
+        )
+        .run(status, now, id);
+    }
+    const found = this.listMcpServers().find(m => m.id === id);
+    if (!found) {
+      throw new OrchestratorError(
+        'NOT_FOUND',
+        `MCP server ${id} not found`,
+        404,
+      );
+    }
+    return found;
+  }
+
+  getConstitutionRule(): ConstitutionRule {
+    const row = this.db
+      .prepare("SELECT * FROM constitution_rules WHERE id = 'default'")
+      .get() as Record<string, unknown> | undefined;
+    if (!row) {
+      return {
+        ...DEFAULT_CONSTITUTION_RULE,
+        updatedAt: new Date().toISOString(),
+      };
+    }
+    return {
+      id: String(row['id']),
+      markdown: String(row['markdown']),
+      blockedCommands: parseJson<string[]>(
+        String(row['blocked_commands_json'] ?? '[]'),
+        [],
+      ),
+      updatedAt: String(row['updated_at']),
+    };
+  }
+
+  saveConstitutionRule(
+    markdown: string,
+    blockedCommands: readonly string[],
+  ): ConstitutionRule {
+    const now = new Date().toISOString();
+    const cleanBlocked = blockedCommands.map(b => b.trim()).filter(Boolean);
+    this.db
+      .prepare(
+        `INSERT INTO constitution_rules (id, markdown, blocked_commands_json, updated_at)
+         VALUES ('default', ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           markdown = excluded.markdown,
+           blocked_commands_json = excluded.blocked_commands_json,
+           updated_at = excluded.updated_at`,
+      )
+      .run(markdown, JSON.stringify(cleanBlocked), now);
+    return {
+      id: 'default',
+      markdown,
+      blockedCommands: cleanBlocked,
+      updatedAt: now,
+    };
   }
 }

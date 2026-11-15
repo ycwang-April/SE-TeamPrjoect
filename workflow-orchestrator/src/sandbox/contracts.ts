@@ -26,6 +26,7 @@ export interface ProcessRunResult {
 }
 
 export interface ISandboxProcessRunner {
+  setBlockedCommandPatterns?(patterns: readonly string[]): void;
   resolveExecutable(command: string): string | null;
   run(options: ProcessRunOptions): Promise<ProcessRunResult>;
   runCommandString(

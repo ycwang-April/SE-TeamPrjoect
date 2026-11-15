@@ -5,7 +5,11 @@
 
 import type {
   CapabilityAdapterManifest,
+  ConstitutionRule,
+  DomainTermEntry,
+  McpServerEntry,
   ModelProviderConfig,
+  SkillEntry,
 } from '../shared/types.ts';
 
 export const SCHEMA_VERSION = 1;
@@ -328,6 +332,55 @@ CREATE TRIGGER IF NOT EXISTS audit_ledger_fts_au AFTER UPDATE ON audit_ledger BE
   INSERT INTO audit_ledger_fts(rowid, id, title, detail)
   VALUES (new.rowid, new.id, new.title, new.detail);
 END;
+
+CREATE TABLE IF NOT EXISTS domain_terms (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  bounded_context TEXT NOT NULL,
+  canonical_term TEXT NOT NULL,
+  local_label TEXT NOT NULL DEFAULT '',
+  definition TEXT NOT NULL DEFAULT '',
+  forbidden_aliases_json TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS skills (
+  id TEXT PRIMARY KEY,
+  slug TEXT NOT NULL UNIQUE,
+  title TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'governance',
+  content TEXT NOT NULL,
+  times_used INTEGER NOT NULL DEFAULT 0,
+  stability_hours REAL NOT NULL DEFAULT 24,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS mcp_servers (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  transport TEXT NOT NULL DEFAULT 'http',
+  endpoint_or_command TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  enabled INTEGER NOT NULL DEFAULT 1,
+  tools_count INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'ready',
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS constitution_rules (
+  id TEXT PRIMARY KEY,
+  markdown TEXT NOT NULL,
+  blocked_commands_json TEXT NOT NULL DEFAULT '[]',
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS pm_reports (
+  workflow_id TEXT PRIMARY KEY REFERENCES workflows(id) ON DELETE CASCADE,
+  payload_json TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
 `;
 
 export const BUILTIN_CAPABILITIES: readonly Omit<
@@ -607,3 +660,135 @@ Build and verify a modular order reconciliation pipeline with idempotent webhook
 ## Assumptions
 - Sqlite WAL mode is available via built-in Node runtime.
 `;
+
+export const DEFAULT_DOMAIN_TERMS: readonly Omit<
+  DomainTermEntry,
+  'workspaceId' | 'createdAt' | 'updatedAt'
+>[] = [
+  {
+    id: 'ddd-twin-graph',
+    boundedContext: 'Orchestration',
+    canonicalTerm: 'TwinGraph',
+    localLabel: '双生拓扑图',
+    definition:
+      'Dual-mode hierarchical WBS and executable DAG synchronizing specification edits with verification runs.',
+    forbiddenAliases: ['ad-hoc flowchart', 'loose task list'],
+  },
+  {
+    id: 'ddd-rework-loop',
+    boundedContext: 'Verification',
+    canonicalTerm: 'ReworkLoop',
+    localLabel: '有界返工回滚环',
+    definition:
+      'Bounded failure-recovery edge creating non-destructive Git rescue refs and re-arming downstream gates.',
+    forbiddenAliases: ['infinite retry', 'blind reset'],
+  },
+  {
+    id: 'ddd-enrollment-ticket',
+    boundedContext: 'AcademicScheduling',
+    canonicalTerm: 'EnrollmentTicket',
+    localLabel: '选课凭证',
+    definition:
+      'Atomic seat-lock token representing an idempotent course enrollment attempt with prerequisite verification.',
+    forbiddenAliases: ['loose booking', 'untracked seat'],
+  },
+  {
+    id: 'ddd-journal-entry',
+    boundedContext: 'ClearingLedger',
+    canonicalTerm: 'JournalEntry',
+    localLabel: '复式记账分录',
+    definition:
+      'Immutable balanced debit-credit record stored strictly in integer minor currency units.',
+    forbiddenAliases: ['float balance', 'unbalanced row'],
+  },
+];
+
+export const DEFAULT_SKILLS: readonly Omit<
+  SkillEntry,
+  'createdAt' | 'updatedAt'
+>[] = [
+  {
+    id: 'skill-pm-slice',
+    slug: 'pm-modular-decomposition',
+    title: 'PM Modular Task Slicing & Disjoint File Scopes',
+    category: 'pm_plan',
+    content:
+      'Decompose Design Spec modules into parallel P2 slices with non-overlapping fileScope globs and explicit FR-xx traceability.',
+    timesUsed: 3,
+    stabilityHours: 48,
+  },
+  {
+    id: 'skill-fail-closed',
+    slug: 'fail-closed-gates',
+    title: 'Fail-Closed Verification & Bounded Rework',
+    category: 'qa',
+    content:
+      'Never self-certify pass when shell exit code != 0 or DDD drift warnings remain unresolved; always preserve rescue refs before rewinding.',
+    timesUsed: 4,
+    stabilityHours: 64,
+  },
+  {
+    id: 'skill-worktree-guard',
+    slug: 'worktree-isolation-safety',
+    title: 'Git Worktree Path Confinement & Env Scrubbing',
+    category: 'governance',
+    content:
+      'Restrict file mutations strictly inside assigned worktree path, reject path traversal, and strip sensitive env vars unless allowlisted.',
+    timesUsed: 5,
+    stabilityHours: 72,
+  },
+  {
+    id: 'skill-ddd-ubiquitous',
+    slug: 'ddd-ubiquitous-guard',
+    title: 'DDD Ubiquitous Terminology Alignment',
+    category: 'backend',
+    content:
+      'Audit specs, task contracts, and code symbols against the bounded-context glossary so multi-agent handoffs remain semantically consistent.',
+    timesUsed: 2,
+    stabilityHours: 36,
+  },
+];
+
+export const DEFAULT_MCP_SERVERS: readonly Omit<McpServerEntry, 'updatedAt'>[] =
+  [
+    {
+      id: 'mcp-orchestrator-station',
+      name: 'orchestrator-station',
+      transport: 'http',
+      endpointOrCommand: 'http://127.0.0.1:4319/mcp',
+      description:
+        'Built-in SE Orchestrator control & evidence MCP bridge exposing workflow status, WBS graph queries, and FTS5 transcript lookup.',
+      enabled: true,
+      toolsCount: 6,
+      status: 'ready',
+    },
+    {
+      id: 'mcp-repo-inspector',
+      name: 'repo-tree-inspector',
+      transport: 'stdio',
+      endpointOrCommand: 'npx @modelcontextprotocol/server-filesystem .',
+      description:
+        'Read-only repository symbol & directory inspection adapter for PM Agent task scoping.',
+      enabled: false,
+      toolsCount: 4,
+      status: 'untested',
+    },
+  ];
+
+export const DEFAULT_CONSTITUTION_RULE: Omit<ConstitutionRule, 'updatedAt'> = {
+  id: 'default',
+  markdown: `# Engineering Constitution & Execution Safety Contract
+
+1. **Disjoint Worker Scopes**: Parallel worker tasks in Phase 2 must declare non-overlapping \`fileScope\` boundaries before concurrent execution.
+2. **Fail-Closed Verification**: Deterministic Shell Gate (\`P3.GATE\`) and Independent QA (\`P3.QA\`) must verify actual outputs rather than agent claims.
+3. **Non-Destructive Recovery**: Always create a \`refs/orchestrator-backup/...\` rescue snapshot before rewinding a failed attempt.
+4. **DDD Semantic Integrity**: Canonical domain terms defined in the Ubiquitous Glossary take precedence over ad-hoc aliases across all specs and code.`,
+  blockedCommands: [
+    'git push --force',
+    'git reset --hard origin',
+    'rm -rf /',
+    'curl | sh',
+    'wget | sh',
+    'drop database',
+  ],
+};

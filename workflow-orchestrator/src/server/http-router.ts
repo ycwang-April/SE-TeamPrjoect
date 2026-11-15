@@ -12,6 +12,9 @@ import {
 import {existsSync, readFileSync} from 'node:fs';
 import {extname, join, resolve} from 'node:path';
 import type {ICapabilityHub} from '../adapters/contracts.ts';
+import {exportWorkflowPlan} from '../core/pm-planner.ts';
+import {BUILTIN_DESIGN_SPEC_PRESETS} from '../core/presets.ts';
+import {CognitiveConsolidator} from '../engines/dreaming.ts';
 import type {WorkflowOrchestratorEngine} from '../engines/orchestrator.ts';
 import type {WorkflowPlannerEngine} from '../engines/planner.ts';
 import type {
@@ -20,11 +23,17 @@ import type {
 } from '../sandbox/contracts.ts';
 import type {
   BootstrapSnapshot,
+  ExportWorkflowPlanResponse,
   OrchestratorSseEvent,
   UpdateDraftGraphRequest,
   UpdateGoalSpecRequest,
 } from '../shared/api.ts';
 import {OrchestratorError} from '../shared/errors.ts';
+import type {
+  SkillEntry,
+  WorkflowCustomization,
+  WorkflowTemplatePreset,
+} from '../shared/types.ts';
 import {
   asRecord,
   optBoolean,
@@ -61,6 +70,7 @@ export class OrchestratorHttpServer {
   private readonly hub: ICapabilityHub;
   private readonly planner: WorkflowPlannerEngine;
   private readonly orchestrator: WorkflowOrchestratorEngine;
+  private readonly consolidator = new CognitiveConsolidator();
   private readonly token: string;
   private readonly startedAt = new Date().toISOString();
   private readonly staticDir: string | null;
@@ -174,7 +184,7 @@ export class OrchestratorHttpServer {
 
   getBootstrapSnapshot(): BootstrapSnapshot {
     return {
-      daemonVersion: '0.1.0',
+      daemonVersion: '0.2.0',
       startedAt: this.startedAt,
       slots: this.hub.getSlotSnapshot(),
       workspaces: this.store.listWorkspaces(),
@@ -188,6 +198,12 @@ export class OrchestratorHttpServer {
         this.vault.getKeyStatus(id),
       ),
       recentAudit: this.store.listRecentAudit(50),
+      domainTerms: this.store.listDomainTerms(),
+      skills: this.store.listSkills(),
+      mcpServers: this.store.listMcpServers(),
+      constitution: this.store.getConstitutionRule(),
+      rehydrationCapsules: this.consolidator.computeAllCapsules(this.store),
+      designSpecPresets: BUILTIN_DESIGN_SPEC_PRESETS,
     };
   }
 
@@ -289,7 +305,7 @@ export class OrchestratorHttpServer {
     }
 
     if (path === '/api/health') {
-      this.writeJson(res, 200, {ok: true, version: '0.1.0'});
+      this.writeJson(res, 200, {ok: true, version: '0.2.0'});
       return;
     }
 
@@ -346,7 +362,44 @@ export class OrchestratorHttpServer {
 
       if (method === 'POST' && path === '/api/workflows/import-requirements') {
         const rec = asRecord(await this.readJsonBody(req));
-        const detail = this.planner.importRequirements({
+        let customization: Partial<WorkflowCustomization> | undefined;
+        if (rec['customization'] && typeof rec['customization'] === 'object') {
+          const c = asRecord(rec['customization']);
+          customization = {
+            templatePreset: c['templatePreset'] as
+              WorkflowTemplatePreset | undefined,
+            includeHumanGate:
+              typeof c['includeHumanGate'] === 'boolean'
+                ? c['includeHumanGate']
+                : undefined,
+            includeSecurityPass:
+              typeof c['includeSecurityPass'] === 'boolean'
+                ? c['includeSecurityPass']
+                : undefined,
+            includeQaAudit:
+              typeof c['includeQaAudit'] === 'boolean'
+                ? c['includeQaAudit']
+                : undefined,
+            maxParallelWorkers:
+              typeof c['maxParallelWorkers'] === 'number'
+                ? c['maxParallelWorkers']
+                : undefined,
+            dddStrictCheck:
+              typeof c['dddStrictCheck'] === 'boolean'
+                ? c['dddStrictCheck']
+                : undefined,
+            pmAgentMode:
+              c['pmAgentMode'] === 'structural' ||
+              c['pmAgentMode'] === 'hybrid_llm'
+                ? c['pmAgentMode']
+                : undefined,
+            budgetUsdLimit:
+              typeof c['budgetUsdLimit'] === 'number'
+                ? c['budgetUsdLimit']
+                : undefined,
+          };
+        }
+        const detail = await this.planner.importRequirementsSmart({
           workspaceId: reqString(rec, 'workspaceId', 80),
           title: optString(rec, 'title', '', 240) || undefined,
           markdown: reqString(rec, 'markdown', 200_000),
@@ -356,8 +409,58 @@ export class OrchestratorHttpServer {
             : 'supervised',
           maxReworkIterations: optNumber(rec, 'maxReworkIterations', 3, 1, 20),
           preferAiPlanner: optBoolean(rec, 'preferAiPlanner', false),
+          customization,
         });
         this.writeJson(res, 201, detail);
+        return;
+      }
+
+      const wfExportMatch = /^\/api\/workflows\/([^/]+)\/export$/.exec(path);
+      if (method === 'GET' && wfExportMatch) {
+        const detail = this.planner.getWorkflowDetail(wfExportMatch[1]!);
+        const exported = exportWorkflowPlan({
+          workflowTitle: detail.workflow.title,
+          goalSpec: detail.goalSpec,
+          nodes: detail.nodes,
+          edges: detail.edges,
+          customization: detail.workflow.customization,
+          pmReport: detail.pmReport,
+        });
+        const payload: ExportWorkflowPlanResponse = {
+          workflowId: detail.workflow.id,
+          code: detail.workflow.code,
+          title: detail.workflow.title,
+          markdown: exported.markdown,
+          mermaid: exported.mermaid,
+          json: JSON.parse(exported.json) as Record<string, unknown>,
+        };
+        this.writeJson(res, 200, payload);
+        return;
+      }
+
+      const wfReviewMatch = /^\/api\/workflows\/([^/]+)\/review-anchor$/.exec(
+        path,
+      );
+      if (method === 'POST' && wfReviewMatch) {
+        const wf = this.store.markWorkflowReviewed(wfReviewMatch[1]!);
+        this.store.appendAudit({
+          workflowId: wf.id,
+          runId: null,
+          category: 'dreaming',
+          author: 'Human Reviewer',
+          title: `Cognitive Re-Anchor #${wf.spacedReviewCount ?? 1}`,
+          detail: `Human review anchor refreshed on ${wf.code} (${wf.title}); retention reset to 100%.`,
+        });
+        const capsule = this.consolidator.computeWorkflowCapsule(
+          this.store,
+          wf.id,
+        );
+        this.broadcast(
+          'workflow.updated',
+          {workflowId: wf.id},
+          {action: 'reviewed'},
+        );
+        this.writeJson(res, 200, {workflow: wf, capsule});
         return;
       }
 
@@ -651,6 +754,169 @@ export class OrchestratorHttpServer {
         return;
       }
 
+      if (method === 'GET' && path === '/api/ddd-terms') {
+        const wsId = url.searchParams.get('workspaceId') || undefined;
+        this.writeJson(res, 200, {
+          domainTerms: this.store.listDomainTerms(wsId),
+        });
+        return;
+      }
+
+      if (method === 'POST' && path === '/api/ddd-terms') {
+        const rec = asRecord(await this.readJsonBody(req));
+        const aliasesRaw = Array.isArray(rec['forbiddenAliases'])
+          ? rec['forbiddenAliases'].map(String)
+          : String(rec['forbiddenAliases'] ?? '')
+              .split(',')
+              .map(s => s.trim())
+              .filter(Boolean);
+        const term = this.store.upsertDomainTerm({
+          id: optString(rec, 'id', '', 80) || undefined,
+          workspaceId: optString(rec, 'workspaceId', 'global', 80),
+          boundedContext: reqString(rec, 'boundedContext', 120),
+          canonicalTerm: reqString(rec, 'canonicalTerm', 120),
+          localLabel: optString(rec, 'localLabel', '', 120),
+          definition: optString(rec, 'definition', '', 1000),
+          forbiddenAliases: aliasesRaw,
+        });
+        this.writeJson(res, 200, {
+          term,
+          domainTerms: this.store.listDomainTerms(),
+        });
+        return;
+      }
+
+      const dddDelMatch = /^\/api\/ddd-terms\/([^/]+)\/delete$/.exec(path);
+      if (method === 'POST' && dddDelMatch) {
+        this.store.deleteDomainTerm(dddDelMatch[1]!);
+        this.writeJson(res, 200, {
+          domainTerms: this.store.listDomainTerms(),
+        });
+        return;
+      }
+
+      if (method === 'GET' && path === '/api/skills') {
+        this.writeJson(res, 200, {skills: this.store.listSkills()});
+        return;
+      }
+
+      if (method === 'POST' && path === '/api/skills') {
+        const rec = asRecord(await this.readJsonBody(req));
+        const rawCategory = optString(rec, 'category', 'governance', 40);
+        const category = (
+          ['pm_plan', 'backend', 'frontend', 'qa', 'governance'].includes(
+            rawCategory,
+          )
+            ? rawCategory
+            : 'governance'
+        ) as SkillEntry['category'];
+        const skill = this.store.upsertSkill({
+          id: optString(rec, 'id', '', 80) || undefined,
+          slug: reqString(rec, 'slug', 120),
+          title: reqString(rec, 'title', 200),
+          category,
+          content: reqString(rec, 'content', 10_000),
+        });
+        this.writeJson(res, 200, {
+          skill,
+          skills: this.store.listSkills(),
+        });
+        return;
+      }
+
+      if (method === 'POST' && path === '/api/dream/consolidate') {
+        const result = this.consolidator.runConsolidation(this.store);
+        this.broadcast('snapshot.invalidated', {}, {source: 'dreaming'});
+        this.writeJson(res, 200, {
+          ...result,
+          skills: this.store.listSkills(),
+        });
+        return;
+      }
+
+      if (method === 'GET' && path === '/api/mcp-servers') {
+        this.writeJson(res, 200, {mcpServers: this.store.listMcpServers()});
+        return;
+      }
+
+      if (method === 'POST' && path === '/api/mcp-servers') {
+        const rec = asRecord(await this.readJsonBody(req));
+        const transport =
+          rec['transport'] === 'stdio' ? ('stdio' as const) : ('http' as const);
+        const server = this.store.upsertMcpServer({
+          id: optString(rec, 'id', '', 80) || undefined,
+          name: reqString(rec, 'name', 120),
+          transport,
+          endpointOrCommand: reqString(rec, 'endpointOrCommand', 512),
+          description: optString(rec, 'description', '', 1000),
+          enabled: optBoolean(rec, 'enabled', true),
+          toolsCount: optNumber(rec, 'toolsCount', 4, 0, 200),
+        });
+        this.writeJson(res, 200, {
+          mcpServer: server,
+          mcpServers: this.store.listMcpServers(),
+        });
+        return;
+      }
+
+      const mcpProbeMatch = /^\/api\/mcp-servers\/([^/]+)\/probe$/.exec(path);
+      if (method === 'POST' && mcpProbeMatch) {
+        const entry = this.store
+          .listMcpServers()
+          .find(m => m.id === mcpProbeMatch[1]!);
+        if (!entry) {
+          throw new OrchestratorError('NOT_FOUND', 'MCP server not found', 404);
+        }
+        let ok = false;
+        if (entry.endpointOrCommand.includes('127.0.0.1:4319')) {
+          ok = true;
+        } else if (entry.transport === 'stdio') {
+          const bin = entry.endpointOrCommand.split(/\s+/)[0] ?? '';
+          ok = Boolean(this.runner.resolveExecutable(bin));
+        } else {
+          try {
+            const r = await fetch(entry.endpointOrCommand, {
+              signal: AbortSignal.timeout(2500),
+            });
+            ok = r.status < 500;
+          } catch {
+            ok = false;
+          }
+        }
+        const updated = this.store.setMcpServerStatus(
+          entry.id,
+          ok ? 'ready' : 'offline',
+        );
+        this.writeJson(res, 200, {
+          mcpServer: updated,
+          mcpServers: this.store.listMcpServers(),
+        });
+        return;
+      }
+
+      if (method === 'POST' && path === '/api/constitution') {
+        const rec = asRecord(await this.readJsonBody(req));
+        const markdown = reqString(rec, 'markdown', 20_000);
+        const blocked = Array.isArray(rec['blockedCommands'])
+          ? rec['blockedCommands'].map(String)
+          : String(rec['blockedCommands'] ?? '')
+              .split(/\r?\n|,/)
+              .map(s => s.trim())
+              .filter(Boolean);
+        const constitution = this.store.saveConstitutionRule(markdown, blocked);
+        this.runner.setBlockedCommandPatterns?.(constitution.blockedCommands);
+        this.store.appendAudit({
+          workflowId: null,
+          runId: null,
+          category: 'governance',
+          author: 'Engineering Constitution',
+          title: `Updated Engineering Constitution (${constitution.blockedCommands.length} blocked commands)`,
+          detail: constitution.blockedCommands.join(', '),
+        });
+        this.writeJson(res, 200, {constitution});
+        return;
+      }
+
       if (method === 'POST' && path === '/api/doctor') {
         const gitRes = await this.runner.run({
           executable: 'git',
@@ -658,11 +924,25 @@ export class OrchestratorHttpServer {
           cwd: process.cwd(),
         });
         const health = await this.hub.probeAllCapabilities();
+        const prunedWorktrees: string[] = [];
+        for (const ws of this.store.listWorkspaces()) {
+          if (existsSync(join(ws.rootPath, '.git'))) {
+            try {
+              const pruned = await this.worktrees.cleanupOrphanWorktrees(
+                ws.rootPath,
+              );
+              prunedWorktrees.push(...pruned);
+            } catch {
+              // ignore non-git workspace dir
+            }
+          }
+        }
         this.writeJson(res, 200, {
           gitReady: gitRes.exitCode === 0,
           gitVersion: gitRes.stdout.trim() || 'Unavailable',
           nodeVersion: process.version,
           capabilityHealth: health,
+          prunedWorktrees,
           checkedAt: new Date().toISOString(),
         });
         return;

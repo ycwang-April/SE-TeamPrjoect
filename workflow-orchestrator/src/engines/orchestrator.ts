@@ -10,6 +10,8 @@
  */
 
 import {randomUUID} from 'node:crypto';
+import {buildRehydrationCapsule} from '../core/cognitive.ts';
+import {renderUbiquitousLanguageSection} from '../core/ddd.ts';
 import {
   computeNextFrontier,
   computeRewindSet,
@@ -138,6 +140,11 @@ export class WorkflowOrchestratorEngine {
       completedNodes: 0,
       failedNodes: 0,
       skippedNodes: 0,
+      budgetUsdLimit: wf.customization?.budgetUsdLimit ?? 2.5,
+      spentUsd: 0,
+      inputTokens: 0,
+      cachedTokens: 0,
+      outputTokens: 0,
       startedAt: now,
       finishedAt: null,
       updatedAt: now,
@@ -507,16 +514,25 @@ export class WorkflowOrchestratorEngine {
 
   getRunDetail(runId: string): RunDetailSnapshot {
     const run = this.store.getRun(runId);
+    const version = this.store.getVersion(run.versionId);
+    const nodes = this.store.listGraphNodes(runId);
+    const workflow = this.store.getWorkflow(run.workflowId);
     return {
       run,
-      version: this.store.getVersion(run.versionId),
-      nodes: this.store.listGraphNodes(runId),
+      version,
+      nodes,
       edges: this.store.listGraphEdges(runId),
       attempts: this.store.listAttempts(runId),
       checkpoints: this.store.listCheckpoints(runId),
       interventions: this.store.listInterventions(runId),
       sessions: this.store.listSessionsForRun(runId),
       recentAudit: this.store.listRecentAudit(50, runId),
+      rehydrationCapsule: buildRehydrationCapsule({
+        workflow,
+        goalSpec: version.goalSpec,
+        nodes,
+        latestRun: run,
+      }),
     };
   }
 
@@ -943,6 +959,11 @@ export class WorkflowOrchestratorEngine {
             startedAt,
             res.summary,
             res.sessionId,
+            {
+              inputTokens: res.inputTokens,
+              cachedTokens: res.cachedTokens,
+              outputTokens: res.outputTokens,
+            },
           );
         } else {
           this.finishNodeFailure(
@@ -954,6 +975,11 @@ export class WorkflowOrchestratorEngine {
             res.exitCode,
             res.errorMessage,
             res.sessionId,
+            {
+              inputTokens: res.inputTokens,
+              cachedTokens: res.cachedTokens,
+              outputTokens: res.outputTokens,
+            },
           );
         }
         return;
@@ -971,6 +997,26 @@ export class WorkflowOrchestratorEngine {
         model,
         role: node.assignedRole,
       });
+
+      const dddGlossary = renderUbiquitousLanguageSection(
+        this.store.listDomainTerms().slice(0, 5),
+      );
+      const constitution = this.store.getConstitutionRule();
+      const topSkills = this.store
+        .listSkills()
+        .slice(0, 2)
+        .map(s => `- ${s.title}: ${s.content}`)
+        .join('\n');
+      const systemPrompt = [
+        cap.sovereignSoul,
+        constitution.markdown
+          ? `Engineering Constitution:\n${constitution.markdown}`
+          : '',
+        dddGlossary,
+        topSkills ? `Active SkillsBank Patterns:\n${topSkills}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n\n');
 
       const userPrompt = [
         `Workflow Goal: ${goalSpec.goal}`,
@@ -997,7 +1043,7 @@ export class WorkflowOrchestratorEngine {
         model,
         permissionTier: run.permissionTier,
         cwd: run.worktreePath,
-        systemPrompt: cap.sovereignSoul,
+        systemPrompt,
         userPrompt,
         gateCommand: node.gateCommand,
         fileScope: node.fileScope,
@@ -1034,6 +1080,11 @@ export class WorkflowOrchestratorEngine {
           startedAt,
           result.finalText.slice(0, 1200),
           session.id,
+          {
+            inputTokens: result.inputTokens,
+            cachedTokens: result.cachedTokens,
+            outputTokens: result.outputTokens,
+          },
         );
       } else {
         this.store.finishSession(session.id, 'failed');
@@ -1046,6 +1097,11 @@ export class WorkflowOrchestratorEngine {
           result.exitCode,
           result.errorMessage || result.outcome,
           session.id,
+          {
+            inputTokens: result.inputTokens,
+            cachedTokens: result.cachedTokens,
+            outputTokens: result.outputTokens,
+          },
         );
       }
     } catch (err) {
@@ -1067,6 +1123,79 @@ export class WorkflowOrchestratorEngine {
     }
   }
 
+  private computeAttemptCost(
+    modelId: string,
+    usage?: {
+      readonly inputTokens?: number;
+      readonly cachedTokens?: number;
+      readonly outputTokens?: number;
+    },
+  ): {
+    readonly inputTokens: number;
+    readonly cachedTokens: number;
+    readonly outputTokens: number;
+    readonly costUsd: number;
+  } {
+    const inputTokens = usage?.inputTokens ?? 0;
+    const cachedTokens = usage?.cachedTokens ?? 0;
+    const outputTokens = usage?.outputTokens ?? 0;
+    if (inputTokens === 0 && cachedTokens === 0 && outputTokens === 0) {
+      return {inputTokens: 0, cachedTokens: 0, outputTokens: 0, costUsd: 0};
+    }
+
+    const providers = this.store.listModelProviders(() => ({
+      hasApiKey: false,
+      maskedKeyHint: '',
+    }));
+    let inRate = 0.55;
+    let cacheRate = 0.14;
+    let outRate = 2.19;
+    for (const p of providers) {
+      const m = p.models.find(item => item.id === modelId);
+      if (m) {
+        inRate = m.inputUsdPerMillion;
+        cacheRate = m.cachedInputUsdPerMillion;
+        outRate = m.outputUsdPerMillion;
+        break;
+      }
+    }
+    const costUsd = Number(
+      (
+        (inputTokens * inRate +
+          cachedTokens * cacheRate +
+          outputTokens * outRate) /
+        1_000_000
+      ).toFixed(6),
+    );
+    return {inputTokens, cachedTokens, outputTokens, costUsd};
+  }
+
+  private addRunUsage(
+    runId: string,
+    metrics: {
+      readonly inputTokens: number;
+      readonly cachedTokens: number;
+      readonly outputTokens: number;
+      readonly costUsd: number;
+    },
+  ): void {
+    if (
+      metrics.inputTokens === 0 &&
+      metrics.cachedTokens === 0 &&
+      metrics.outputTokens === 0 &&
+      metrics.costUsd === 0
+    ) {
+      return;
+    }
+    const curr = this.store.getRun(runId);
+    this.store.updateRun(runId, {
+      spentUsd: Number(((curr.spentUsd ?? 0) + metrics.costUsd).toFixed(6)),
+      inputTokens: (curr.inputTokens ?? 0) + metrics.inputTokens,
+      cachedTokens: (curr.cachedTokens ?? 0) + metrics.cachedTokens,
+      outputTokens: (curr.outputTokens ?? 0) + metrics.outputTokens,
+    });
+  }
+
   private finishNodeSuccess(
     runId: string,
     workflowId: string,
@@ -1075,6 +1204,11 @@ export class WorkflowOrchestratorEngine {
     startedAt: string,
     summary: string,
     sessionId: string | null,
+    usage?: {
+      readonly inputTokens?: number;
+      readonly cachedTokens?: number;
+      readonly outputTokens?: number;
+    },
   ): void {
     const finishedAt = new Date().toISOString();
     const durationSec = Math.max(
@@ -1083,6 +1217,7 @@ export class WorkflowOrchestratorEngine {
         ((Date.parse(finishedAt) - Date.parse(startedAt)) / 1000).toFixed(2),
       ),
     );
+    const metrics = this.computeAttemptCost(node.assignedModel ?? '', usage);
     this.store.updateNodeState(node.id, {
       status: 'succeeded',
       outputSummary: summary,
@@ -1103,9 +1238,14 @@ export class WorkflowOrchestratorEngine {
       outputSummary: summary,
       errorMessage: '',
       sessionId,
+      inputTokens: metrics.inputTokens,
+      cachedTokens: metrics.cachedTokens,
+      outputTokens: metrics.outputTokens,
+      costUsd: metrics.costUsd,
       startedAt,
       finishedAt,
     });
+    this.addRunUsage(runId, metrics);
     this.store.recountRunProgress(runId);
     this.broadcast(
       'node.status',
@@ -1123,6 +1263,11 @@ export class WorkflowOrchestratorEngine {
     exitCode: number,
     errorMessage: string,
     sessionId: string | null,
+    usage?: {
+      readonly inputTokens?: number;
+      readonly cachedTokens?: number;
+      readonly outputTokens?: number;
+    },
   ): void {
     const finishedAt = new Date().toISOString();
     const durationSec = Math.max(
@@ -1131,6 +1276,7 @@ export class WorkflowOrchestratorEngine {
         ((Date.parse(finishedAt) - Date.parse(startedAt)) / 1000).toFixed(2),
       ),
     );
+    const metrics = this.computeAttemptCost(node.assignedModel ?? '', usage);
     this.store.updateNodeState(node.id, {
       status: 'failed',
       outputSummary: errorMessage,
@@ -1151,9 +1297,14 @@ export class WorkflowOrchestratorEngine {
       outputSummary: '',
       errorMessage,
       sessionId,
+      inputTokens: metrics.inputTokens,
+      cachedTokens: metrics.cachedTokens,
+      outputTokens: metrics.outputTokens,
+      costUsd: metrics.costUsd,
       startedAt,
       finishedAt,
     });
+    this.addRunUsage(runId, metrics);
     this.store.recountRunProgress(runId);
     this.store.appendAudit({
       workflowId,

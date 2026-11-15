@@ -196,6 +196,12 @@ function killProcessTree(pid: number | undefined): void {
 }
 
 export class SandboxProcessRunner implements ISandboxProcessRunner {
+  private globalBlockedPatterns: readonly string[] = [];
+
+  setBlockedCommandPatterns(patterns: readonly string[]): void {
+    this.globalBlockedPatterns = [...patterns];
+  }
+
   resolveExecutable(command: string): string | null {
     const trimmed = command.trim();
     if (!trimmed || /[\0\r\n]/.test(trimmed)) {
@@ -246,10 +252,10 @@ export class SandboxProcessRunner implements ISandboxProcessRunner {
 
   async run(options: ProcessRunOptions): Promise<ProcessRunResult> {
     const fullLine = [options.executable, ...options.args].join(' ');
-    const violation = findBlockedCommandViolation(
-      fullLine,
-      options.blockedCommandPatterns ?? [],
-    );
+    const violation = findBlockedCommandViolation(fullLine, [
+      ...this.globalBlockedPatterns,
+      ...(options.blockedCommandPatterns ?? []),
+    ]);
     if (violation) {
       throw new OrchestratorError(
         'POLICY_DENIED',
@@ -415,10 +421,10 @@ export class SandboxProcessRunner implements ISandboxProcessRunner {
     timeoutMs = DEFAULT_TIMEOUT_MS,
     blockedPatterns: readonly string[] = [],
   ): Promise<ProcessRunResult> {
-    const rawViolation = findBlockedCommandViolation(
-      commandLine,
-      blockedPatterns,
-    );
+    const rawViolation = findBlockedCommandViolation(commandLine, [
+      ...this.globalBlockedPatterns,
+      ...blockedPatterns,
+    ]);
     if (rawViolation) {
       throw new OrchestratorError(
         'POLICY_DENIED',

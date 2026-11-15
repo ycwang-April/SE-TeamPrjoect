@@ -5,6 +5,7 @@
  */
 
 import type {ICapabilityHub} from '../adapters/contracts.ts';
+import {detectTerminologyDrift} from '../core/ddd.ts';
 import type {
   IGitWorktreeManager,
   ISandboxProcessRunner,
@@ -19,6 +20,9 @@ export interface NodeCertifyOutcome {
   readonly summary: string;
   readonly errorMessage: string;
   readonly sessionId: string | null;
+  readonly inputTokens?: number;
+  readonly cachedTokens?: number;
+  readonly outputTokens?: number;
 }
 
 export class ExecutionCertifier {
@@ -44,10 +48,12 @@ export class ExecutionCertifier {
     node: GraphNode,
   ): Promise<NodeCertifyOutcome> {
     const cmd = node.gateCommand?.trim() || run.verifyCommand;
+    const blocked = this.store.getConstitutionRule().blockedCommands;
     const res = await this.runner.runCommandString(
       cmd,
       run.worktreePath,
       90_000,
+      blocked,
     );
     const out = [res.stdout.trim(), res.stderr.trim()]
       .filter(Boolean)
@@ -76,10 +82,19 @@ export class ExecutionCertifier {
       run.baseCommitSha,
     );
     const acCount = goalSpec.acceptanceCriteria.length;
+    const terms = this.store.listDomainTerms();
+    const drifts = detectTerminologyDrift(
+      `${goalSpec.goal}\n${diff.changedFiles.join(' ')}`,
+      terms,
+    );
+    const driftNote =
+      drifts.length > 0
+        ? ` | DDD alerts (${drifts.length}): ${drifts.map(d => `${d.matchedAlias}->${d.canonicalTerm}`).join(', ')}`
+        : ' | DDD terminology clean';
     return {
       passed: true,
       exitCode: 0,
-      summary: `Self-Check verified ${diff.changedFiles.length} modified file(s) across ${acCount} AC item(s). ${diff.summary}`,
+      summary: `Self-Check verified ${diff.changedFiles.length} modified file(s) across ${acCount} AC item(s). ${diff.summary}${driftNote}`,
       errorMessage: '',
       sessionId: null,
     };
@@ -169,6 +184,9 @@ export class ExecutionCertifier {
       summary: `QA Score=${verdict.score.toFixed(2)} (${verdict.passed ? 'PASS' : 'FAIL'}): ${verdict.findings.join('; ')}`,
       errorMessage: verdict.passed ? '' : verdict.findings.join('; '),
       sessionId: session.id,
+      inputTokens: result.inputTokens,
+      cachedTokens: result.cachedTokens,
+      outputTokens: result.outputTokens,
     };
   }
 }

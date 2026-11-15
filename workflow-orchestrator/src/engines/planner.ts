@@ -4,6 +4,7 @@
  */
 
 import {randomUUID} from 'node:crypto';
+import type {ProviderSecretLookup} from '../adapters/contracts.ts';
 import {
   analyzeChangeImpact,
   parseRequirementsMarkdown,
@@ -23,12 +24,16 @@ import type {
   GoalSpec,
   GraphEdge,
   GraphNode,
+  PmDecompositionReport,
+  WorkflowCustomization,
   WorkflowVersionSnapshot,
 } from '../shared/types.ts';
 import type {OrchestratorStore} from '../store/database.ts';
+import {PmAgentDecomposer} from './pm-agent.ts';
 
 export class WorkflowPlannerEngine {
   private readonly store: OrchestratorStore;
+  private readonly pmAgent: PmAgentDecomposer;
   private readonly onBroadcast: (
     type: 'workflow.updated' | 'audit.appended',
     workflowId: string,
@@ -42,9 +47,92 @@ export class WorkflowPlannerEngine {
       workflowId: string,
       payload: Record<string, unknown>,
     ) => void,
+    resolveProvider?: ProviderSecretLookup,
   ) {
     this.store = store;
+    this.pmAgent = new PmAgentDecomposer(store, resolveProvider);
     this.onBroadcast = onBroadcast;
+  }
+
+  private persistImportedWorkflow(args: {
+    readonly workflowId: string;
+    readonly workspaceId: string;
+    readonly verifyCommand: string;
+    readonly permissionTier: 'turbo' | 'supervised' | 'strict';
+    readonly maxReworkIterations: number;
+    readonly goalSpec: GoalSpec;
+    readonly report: PmDecompositionReport;
+    readonly customization: WorkflowCustomization;
+  }): WorkflowDetailSnapshot {
+    const {
+      workflowId,
+      workspaceId,
+      verifyCommand,
+      permissionTier,
+      maxReworkIterations,
+      goalSpec,
+      report,
+      customization,
+    } = args;
+    const capabilities = this.store.listCapabilities();
+    const health = this.store.listCapabilityHealth();
+    const domainTerms = this.store.listDomainTerms(workspaceId);
+    const planned = planTwinGraphFromGoalSpec({
+      scopeId: workflowId,
+      goalSpec,
+      capabilities,
+      healthProfiles: health,
+      permissionTier,
+      verifyCommand,
+      customization,
+      pmSlices: report.slices,
+      domainTerms: customization.dddStrictCheck ? domainTerms : [],
+    });
+
+    const validation = validateWorkflowSpec({
+      workflowId,
+      goalSpec,
+      nodes: planned.nodes,
+      edges: planned.edges,
+      capabilities,
+      healthProfiles: health,
+      permissionTier,
+      maxReworkIterations,
+      domainTerms,
+      dddStrictCheck: customization.dddStrictCheck,
+    });
+
+    this.store.savepoint(() => {
+      const wf = this.store.createWorkflowRecord({
+        id: workflowId,
+        workspaceId,
+        title: goalSpec.title,
+        description: goalSpec.goal,
+        permissionTier,
+        verifyCommand,
+        maxReworkIterations,
+        customization,
+      });
+      this.store.updateWorkflowMeta(wf.id, {
+        status: validation.valid ? 'validated' : 'draft',
+        customization,
+      });
+      this.store.saveGoalSpec(goalSpec);
+      this.store.savePmReport(report);
+      this.store.replaceGraph(wf.id, planned.nodes, planned.edges);
+      this.store.saveValidationReport(validation);
+      this.store.appendAudit({
+        workflowId: wf.id,
+        runId: null,
+        category: 'spec',
+        author: `PM Agent (${report.mode})`,
+        title: `Imported Design Spec & planned ${planned.nodes.length} nodes`,
+        detail: `${report.pmNarrative} (${goalSpec.requirements.length} FRs, ${goalSpec.acceptanceCriteria.length} ACs, ${validation.errorCount} blocking errors, ${validation.warningCount} warnings).`,
+      });
+    });
+
+    this.onBroadcast('workflow.updated', workflowId, {action: 'imported'});
+    return this.getWorkflowDetail(workflowId);
   }
 
   importRequirements(req: ImportRequirementsRequest): WorkflowDetailSnapshot {
@@ -61,56 +149,58 @@ export class WorkflowPlannerEngine {
       defaultVerifyCommand: verifyCommand,
     });
 
-    const capabilities = this.store.listCapabilities();
-    const health = this.store.listCapabilityHealth();
-    const planned = planTwinGraphFromGoalSpec({
-      scopeId: workflowId,
-      goalSpec,
-      capabilities,
-      healthProfiles: health,
-      permissionTier,
-      verifyCommand,
-    });
-
-    const validation = validateWorkflowSpec({
+    const {report, customization} = this.pmAgent.decomposeStructural({
       workflowId,
       goalSpec,
-      nodes: planned.nodes,
-      edges: planned.edges,
-      capabilities,
-      healthProfiles: health,
+      customization: req.customization,
+      permissionTier,
+    });
+
+    return this.persistImportedWorkflow({
+      workflowId,
+      workspaceId: workspace.id,
+      verifyCommand,
       permissionTier,
       maxReworkIterations,
+      goalSpec,
+      report,
+      customization,
+    });
+  }
+
+  async importRequirementsSmart(
+    req: ImportRequirementsRequest,
+  ): Promise<WorkflowDetailSnapshot> {
+    const workspace = this.store.getWorkspace(req.workspaceId);
+    const workflowId = `wf-${randomUUID().slice(0, 8)}`;
+    const verifyCommand = req.verifyCommand?.trim() || workspace.verifyCommand;
+    const permissionTier = req.permissionTier ?? 'supervised';
+    const maxReworkIterations = req.maxReworkIterations ?? 3;
+
+    const goalSpec = parseRequirementsMarkdown({
+      workflowId,
+      rawMarkdown: req.markdown,
+      titleHint: req.title,
+      defaultVerifyCommand: verifyCommand,
     });
 
-    this.store.savepoint(() => {
-      const wf = this.store.createWorkflowRecord({
-        id: workflowId,
-        workspaceId: workspace.id,
-        title: goalSpec.title,
-        description: goalSpec.goal,
-        permissionTier,
-        verifyCommand,
-        maxReworkIterations,
-      });
-      this.store.updateWorkflowMeta(wf.id, {
-        status: validation.valid ? 'validated' : 'draft',
-      });
-      this.store.saveGoalSpec(goalSpec);
-      this.store.replaceGraph(wf.id, planned.nodes, planned.edges);
-      this.store.saveValidationReport(validation);
-      this.store.appendAudit({
-        workflowId: wf.id,
-        runId: null,
-        category: 'spec',
-        author: 'WorkflowPlannerEngine',
-        title: `Imported PRD & planned ${planned.nodes.length} nodes`,
-        detail: `Extracted ${goalSpec.requirements.length} FRs, ${goalSpec.acceptanceCriteria.length} ACs, ${validation.errorCount} blocking errors.`,
-      });
+    const {report, customization} = await this.pmAgent.decomposeHybrid({
+      workflowId,
+      goalSpec,
+      customization: req.customization,
+      permissionTier,
     });
 
-    this.onBroadcast('workflow.updated', workflowId, {action: 'imported'});
-    return this.getWorkflowDetail(workflowId);
+    return this.persistImportedWorkflow({
+      workflowId,
+      workspaceId: workspace.id,
+      verifyCommand,
+      permissionTier,
+      maxReworkIterations,
+      goalSpec,
+      report,
+      customization,
+    });
   }
 
   updateGoalSpec(
@@ -136,6 +226,7 @@ export class WorkflowPlannerEngine {
 
     const nodes = this.store.listGraphNodes(workflowId);
     const edges = this.store.listGraphEdges(workflowId);
+    const domainTerms = this.store.listDomainTerms(wf.workspaceId);
     const validation = validateWorkflowSpec({
       workflowId,
       goalSpec: next,
@@ -145,6 +236,8 @@ export class WorkflowPlannerEngine {
       healthProfiles: this.store.listCapabilityHealth(),
       permissionTier: wf.permissionTier,
       maxReworkIterations: wf.maxReworkIterations,
+      domainTerms,
+      dddStrictCheck: wf.customization?.dddStrictCheck ?? true,
     });
 
     this.store.savepoint(() => {
@@ -177,6 +270,14 @@ export class WorkflowPlannerEngine {
     const capabilities = this.store.listCapabilities();
     const health = this.store.listCapabilityHealth();
 
+    const domainTerms = this.store.listDomainTerms(wf.workspaceId);
+    const {report, customization} = this.pmAgent.decomposeStructural({
+      workflowId,
+      goalSpec: spec,
+      customization: wf.customization,
+      permissionTier: wf.permissionTier,
+    });
+
     const planned = planTwinGraphFromGoalSpec({
       scopeId: workflowId,
       goalSpec: spec,
@@ -184,6 +285,9 @@ export class WorkflowPlannerEngine {
       healthProfiles: health,
       permissionTier: wf.permissionTier,
       verifyCommand: wf.verifyCommand,
+      customization,
+      pmSlices: report.slices,
+      domainTerms: customization.dddStrictCheck ? domainTerms : [],
     });
 
     const impact = analyzeChangeImpact({
@@ -202,9 +306,12 @@ export class WorkflowPlannerEngine {
       healthProfiles: health,
       permissionTier: wf.permissionTier,
       maxReworkIterations: wf.maxReworkIterations,
+      domainTerms,
+      dddStrictCheck: customization.dddStrictCheck,
     });
 
     this.store.savepoint(() => {
+      this.store.savePmReport(report);
       this.store.replaceGraph(workflowId, planned.nodes, planned.edges);
       this.store.saveImpactReport(impact);
       this.store.saveValidationReport(validation);
@@ -373,6 +480,8 @@ export class WorkflowPlannerEngine {
       healthProfiles: this.store.listCapabilityHealth(),
       permissionTier: wf.permissionTier,
       maxReworkIterations: wf.maxReworkIterations,
+      domainTerms: this.store.listDomainTerms(wf.workspaceId),
+      dddStrictCheck: wf.customization?.dddStrictCheck ?? true,
     });
 
     this.store.savepoint(() => {
@@ -410,6 +519,8 @@ export class WorkflowPlannerEngine {
       healthProfiles: this.store.listCapabilityHealth(),
       permissionTier: wf.permissionTier,
       maxReworkIterations: wf.maxReworkIterations,
+      domainTerms: this.store.listDomainTerms(wf.workspaceId),
+      dddStrictCheck: wf.customization?.dddStrictCheck ?? true,
     });
 
     const trial = runTrialSimulation({
@@ -463,6 +574,8 @@ export class WorkflowPlannerEngine {
       healthProfiles: this.store.listCapabilityHealth(),
       permissionTier: wf.permissionTier,
       maxReworkIterations: wf.maxReworkIterations,
+      domainTerms: this.store.listDomainTerms(wf.workspaceId),
+      dddStrictCheck: wf.customization?.dddStrictCheck ?? true,
     });
 
     if (!validation.valid) {
@@ -530,6 +643,7 @@ export class WorkflowPlannerEngine {
       latestTrial: this.store.getLatestTrialReport(workflowId),
       lastImpact: this.store.getImpactReport(workflowId),
       versions: this.store.listVersions(workflowId),
+      pmReport: this.store.getPmReport(workflowId),
     };
   }
 }

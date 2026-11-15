@@ -48,6 +48,7 @@ export async function createOrchestratorRuntime(
   const store = new OrchestratorStore(join(dataDir, 'orchestrator.sqlite'));
   const vault = new HostSecretVault(join(dataDir, 'secrets.json'));
   const runner = new SandboxProcessRunner();
+  runner.setBlockedCommandPatterns(store.getConstitutionRule().blockedCommands);
   const worktrees = new GitWorktreeManager(runner);
   const hub = new CapabilityHub(store, runner, worktrees, providerId =>
     vault.resolveProvider(store, providerId),
@@ -59,6 +60,7 @@ export async function createOrchestratorRuntime(
     (type, workflowId, payload) => {
       serverRef?.broadcast(type, {workflowId}, payload);
     },
+    providerId => vault.resolveProvider(store, providerId),
   );
   const certifier = new ExecutionCertifier(store, runner, worktrees, hub);
   const orchestrator = new WorkflowOrchestratorEngine({
