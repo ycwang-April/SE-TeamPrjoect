@@ -211,6 +211,21 @@ export function WorkstationView(props: WorkstationViewProps): ReactElement {
           <span className="mono tag" title={run.worktreePath}>
             {run.gitBranch}
           </span>
+          <span
+            className="mono tag"
+            title={tr(
+              lang,
+              'Token 与成本预算遥测',
+              'Token & Cost Budget Telemetry',
+            )}
+          >
+            ${(run.spentUsd ?? 0).toFixed(4)} / $
+            {(run.budgetUsdLimit ?? 2.5).toFixed(2)} ·{' '}
+            {(
+              (run.inputTokens ?? 0) + (run.outputTokens ?? 0)
+            ).toLocaleString()}{' '}
+            tok
+          </span>
         </div>
 
         <div style={{display: 'flex', alignItems: 'center', gap: 8}}>
@@ -270,6 +285,66 @@ export function WorkstationView(props: WorkstationViewProps): ReactElement {
             onClick={() => setErrorMsg(null)}
           >
             ×
+          </button>
+        </div>
+      )}
+
+      {/* Ebbinghaus Cognitive Re-hydration Capsule Strip */}
+      {detail.rehydrationCapsule && (
+        <div
+          style={{
+            padding: '7px 18px',
+            background: '#f8fafc',
+            borderBottom: '1px solid var(--border-hairline)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            flexWrap: 'wrap',
+            fontSize: 12,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              flexWrap: 'wrap',
+            }}
+          >
+            <span
+              className={`tag ${
+                detail.rehydrationCapsule.tier === 'warm'
+                  ? 'tag-green'
+                  : detail.rehydrationCapsule.tier === 'delta_30s'
+                    ? 'tag-indigo'
+                    : 'tag-amber'
+              }`}
+            >
+              {detail.rehydrationCapsule.tier} ·{' '}
+              {Math.round(detail.rehydrationCapsule.retentionScore * 100)}%
+            </span>
+            <span className="mono" style={{color: 'var(--text-muted)'}}>
+              {detail.rehydrationCapsule.elapsedHours.toFixed(1)}h · entropy{' '}
+              {detail.rehydrationCapsule.mutationEntropy.toFixed(2)}
+            </span>
+            <span style={{color: 'var(--text-secondary)'}}>
+              {detail.rehydrationCapsule.autonomousDeltaBullets[0] ??
+                detail.rehydrationCapsule.northStarGoal}
+            </span>
+          </div>
+          <button
+            type="button"
+            className="btn btn-sm btn-soft"
+            disabled={busy}
+            onClick={() =>
+              void execAction(async () => {
+                await orchApi.markWorkflowReviewed(detail.run.workflowId);
+                return orchApi.getRunDetail(detail.run.id);
+              })
+            }
+          >
+            {tr(lang, '标记人工已复核重锚', 'Mark Human Re-Anchored')}
           </button>
         </div>
       )}

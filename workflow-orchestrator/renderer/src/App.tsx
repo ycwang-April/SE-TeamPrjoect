@@ -225,6 +225,8 @@ export function App(): ReactElement {
             workspaces={snapshot.workspaces}
             workflows={snapshot.workflows}
             capabilities={snapshot.capabilities}
+            designSpecPresets={snapshot.designSpecPresets}
+            domainTerms={snapshot.domainTerms}
             selectedWorkflowId={selectedWorkflowId}
             onSelectWorkflow={setSelectedWorkflowId}
             onRefreshBootstrap={loadBootstrap}
@@ -248,6 +250,9 @@ export function App(): ReactElement {
             capabilities={snapshot.capabilities}
             capabilityHealth={snapshot.capabilityHealth}
             modelProviders={snapshot.modelProviders}
+            skills={snapshot.skills}
+            mcpServers={snapshot.mcpServers}
+            domainTerms={snapshot.domainTerms}
             onRefresh={loadBootstrap}
           />
         ) : (
@@ -256,6 +261,9 @@ export function App(): ReactElement {
             versions={snapshot.versions}
             runs={snapshot.runs}
             recentAudit={snapshot.recentAudit}
+            rehydrationCapsules={snapshot.rehydrationCapsules}
+            constitution={snapshot.constitution}
+            onRefresh={loadBootstrap}
             onOpenRun={runId => {
               setSelectedRunId(runId);
               setSection('live');

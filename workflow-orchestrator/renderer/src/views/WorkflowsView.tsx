@@ -1,10 +1,16 @@
 import {type ReactElement, useEffect, useMemo, useState} from 'react';
-import type {WorkflowDetailSnapshot} from '../../../src/shared/api';
 import type {
+  ExportWorkflowPlanResponse,
+  WorkflowDetailSnapshot,
+} from '../../../src/shared/api';
+import type {
+  BuiltinDesignSpecPreset,
   CapabilityAdapterManifest,
+  DomainTermEntry,
   ExecutorKind,
   PermissionTier,
   WorkflowRecord,
+  WorkflowTemplatePreset,
   WorkspaceEntry,
 } from '../../../src/shared/types';
 import {orchApi} from '../api/client';
@@ -23,6 +29,8 @@ interface WorkflowsViewProps {
   readonly workspaces: readonly WorkspaceEntry[];
   readonly workflows: readonly WorkflowRecord[];
   readonly capabilities: readonly CapabilityAdapterManifest[];
+  readonly designSpecPresets: readonly BuiltinDesignSpecPreset[];
+  readonly domainTerms: readonly DomainTermEntry[];
   readonly selectedWorkflowId: string | null;
   readonly onSelectWorkflow: (workflowId: string) => void;
   readonly onRefreshBootstrap: () => Promise<void>;
@@ -61,6 +69,8 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
     workspaces,
     workflows,
     capabilities,
+    designSpecPresets,
+    domainTerms,
     selectedWorkflowId,
     onSelectWorkflow,
     onRefreshBootstrap,
@@ -73,13 +83,37 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Import PRD Modal
+  // Import Design Spec Modal & SE Workflow Customization
   const [showImport, setShowImport] = useState(false);
-  const [importMd, setImportMd] = useState(DEFAULT_IMPORT_MD);
+  const [selectedPresetId, setSelectedPresetId] = useState(
+    designSpecPresets[0]?.id ?? '',
+  );
+  const [importMd, setImportMd] = useState(
+    designSpecPresets[0]?.markdown ?? DEFAULT_IMPORT_MD,
+  );
   const [importTier, setImportTier] = useState<PermissionTier>('supervised');
   const [importVerifyCmd, setImportVerifyCmd] = useState(
     'echo Verification gate passed',
   );
+  const [templatePreset, setTemplatePreset] =
+    useState<WorkflowTemplatePreset>('fullstack_se');
+  const [includeHumanGate, setIncludeHumanGate] = useState(true);
+  const [includeSecurityPass, setIncludeSecurityPass] = useState(false);
+  const [includeQaAudit, setIncludeQaAudit] = useState(true);
+  const [dddStrictCheck, setDddStrictCheck] = useState(true);
+  const [pmAgentMode, setPmAgentMode] = useState<'hybrid_llm' | 'structural'>(
+    'hybrid_llm',
+  );
+  const [maxParallelWorkers, setMaxParallelWorkers] = useState(3);
+  const [budgetUsdLimit, setBudgetUsdLimit] = useState(2.5);
+
+  // Export Plan Modal
+  const [exportPlan, setExportPlan] =
+    useState<ExportWorkflowPlanResponse | null>(null);
+  const [exportTab, setExportTab] = useState<'markdown' | 'mermaid' | 'json'>(
+    'markdown',
+  );
+  const [copiedExport, setCopiedExport] = useState(false);
 
   // Draft Node Editor form
   const [editTitle, setEditTitle] = useState('');
@@ -143,6 +177,35 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
     setEditGateCmd(selectedNode.gateCommand ?? '');
   }, [selectedNode]);
 
+  const applyDesignPreset = (presetId: string): void => {
+    const preset = designSpecPresets.find(p => p.id === presetId);
+    if (!preset) {
+      return;
+    }
+    setSelectedPresetId(preset.id);
+    setImportMd(preset.markdown);
+    setTemplatePreset(preset.recommendedTemplate);
+    setIncludeSecurityPass(
+      preset.recommendedTemplate === 'microservice_hardened',
+    );
+    setIncludeHumanGate(preset.recommendedTemplate !== 'rapid_ui_api');
+    setIncludeQaAudit(true);
+  };
+
+  const handleUploadDesignSpecFile = (file: File | undefined): void => {
+    if (!file) {
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string' && reader.result.trim()) {
+        setSelectedPresetId('');
+        setImportMd(reader.result);
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const handleImportPrd = async (): Promise<void> => {
     const ws = workspaces[0];
     if (!ws || !importMd.trim()) {
@@ -156,11 +219,39 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
         markdown: importMd,
         permissionTier: importTier,
         verifyCommand: importVerifyCmd.trim() || undefined,
+        customization: {
+          templatePreset,
+          includeHumanGate,
+          includeSecurityPass,
+          includeQaAudit,
+          dddStrictCheck,
+          pmAgentMode,
+          maxParallelWorkers,
+          budgetUsdLimit,
+        },
       });
       setShowImport(false);
       await onRefreshBootstrap();
       onSelectWorkflow(created.workflow.id);
       setDetail(created);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleExportPlan = async (): Promise<void> => {
+    if (!detail) {
+      return;
+    }
+    setBusy(true);
+    setErrorMsg(null);
+    try {
+      const plan = await orchApi.exportWorkflowPlan(detail.workflow.id);
+      setExportPlan(plan);
+      setExportTab('markdown');
+      setCopiedExport(false);
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : String(err));
     } finally {
@@ -361,8 +452,14 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
               </span>
               <span className="tag">
                 {detail.goalSpec.requirements.length} FR ·{' '}
-                {detail.goalSpec.acceptanceCriteria.length} AC
+                {detail.goalSpec.acceptanceCriteria.length} AC ·{' '}
+                {domainTerms.length} DDD
               </span>
+              {detail.workflow.customization && (
+                <span className="tag tag-indigo mono">
+                  {detail.workflow.customization.templatePreset}
+                </span>
+              )}
               {detail.validation.errorCount > 0 && (
                 <span className="tag tag-red">
                   <AlertIcon size={12} /> {detail.validation.errorCount}{' '}
@@ -380,7 +477,15 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
             onClick={() => setShowImport(true)}
           >
             <PlusIcon size={14} />{' '}
-            {tr(lang, '导入需求文档 (PRD)', 'Import Requirements')}
+            {tr(lang, '导入设计规格 (Spec)', 'Import Design Spec')}
+          </button>
+          <button
+            type="button"
+            className="btn btn-soft"
+            disabled={!detail || busy}
+            onClick={() => void handleExportPlan()}
+          >
+            {tr(lang, '导出计划 / Mermaid', 'Export WBS / Mermaid')}
           </button>
           <button
             type="button"
@@ -471,6 +576,170 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
         </div>
       ) : subTab === 'spec' ? (
         <div className="page-scroll">
+          {(detail.pmReport || (detail.goalSpec.modules?.length ?? 0) > 0) && (
+            <div className="card" style={{marginBottom: 16}}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                }}
+              >
+                <div>
+                  <strong style={{fontSize: 13.5}}>
+                    {tr(
+                      lang,
+                      'PM Agent 设计规格分解与模块编排摘要',
+                      'PM Agent Design Spec Decomposition & SE Modules',
+                    )}
+                  </strong>
+                  {detail.pmReport && (
+                    <div
+                      style={{
+                        color: 'var(--text-muted)',
+                        fontSize: 12,
+                        marginTop: 2,
+                      }}
+                    >
+                      {detail.pmReport.pmNarrative}
+                    </div>
+                  )}
+                </div>
+                <div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>
+                  {detail.pmReport && (
+                    <span className="tag tag-indigo mono">
+                      {detail.pmReport.mode} · {detail.pmReport.templatePreset}
+                    </span>
+                  )}
+                  {detail.pmReport?.skillsApplied.map(sk => (
+                    <span key={sk} className="tag tag-green mono">
+                      skill:{sk}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {(detail.goalSpec.modules?.length ?? 0) > 0 && (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    gap: 8,
+                    marginTop: 10,
+                  }}
+                >
+                  {detail.goalSpec.modules!.map((mod, idx) => (
+                    <div
+                      key={`${mod.name}-${idx}`}
+                      style={{
+                        padding: '8px 10px',
+                        border: '1px solid var(--border-card)',
+                        borderRadius: 6,
+                        background: 'var(--bg-page)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          gap: 6,
+                          alignItems: 'center',
+                        }}
+                      >
+                        <strong style={{fontSize: 12.5}}>{mod.name}</strong>
+                        <span className="tag tag-indigo mono">{mod.layer}</span>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 11.5,
+                          color: 'var(--text-muted)',
+                          marginTop: 3,
+                        }}
+                      >
+                        {mod.summary}
+                      </div>
+                      {(mod.relatedFrCodes.length > 0 ||
+                        mod.artifacts.length > 0) && (
+                        <div
+                          className="mono"
+                          style={{
+                            fontSize: 10.5,
+                            color: 'var(--text-secondary)',
+                            marginTop: 4,
+                          }}
+                        >
+                          {[...mod.relatedFrCodes, ...mod.artifacts].join(
+                            ' · ',
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {detail.pmReport && detail.pmReport.slices.length > 0 && (
+                <div style={{marginTop: 10, overflowX: 'auto'}}>
+                  <table
+                    style={{
+                      width: '100%',
+                      borderCollapse: 'collapse',
+                      fontSize: 11.5,
+                    }}
+                  >
+                    <thead>
+                      <tr
+                        style={{
+                          textAlign: 'left',
+                          borderBottom: '1px solid var(--border-hairline)',
+                          color: 'var(--text-muted)',
+                        }}
+                      >
+                        <th style={{padding: '5px 6px'}}>WBS</th>
+                        <th style={{padding: '5px 6px'}}>Task Slice</th>
+                        <th style={{padding: '5px 6px'}}>Layer</th>
+                        <th style={{padding: '5px 6px'}}>Role</th>
+                        <th style={{padding: '5px 6px'}}>FR</th>
+                        <th style={{padding: '5px 6px'}}>Deps</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detail.pmReport.slices.map(s => (
+                        <tr
+                          key={s.code}
+                          style={{
+                            borderBottom: '1px solid var(--border-hairline)',
+                          }}
+                        >
+                          <td className="mono" style={{padding: '5px 6px'}}>
+                            {s.code}
+                          </td>
+                          <td style={{padding: '5px 6px', fontWeight: 600}}>
+                            {s.title}
+                          </td>
+                          <td className="mono" style={{padding: '5px 6px'}}>
+                            {s.layer}
+                          </td>
+                          <td className="mono" style={{padding: '5px 6px'}}>
+                            {s.assignedRole}/{s.executorKind}
+                          </td>
+                          <td className="mono" style={{padding: '5px 6px'}}>
+                            {s.requirementRefs.join(', ') || '-'}
+                          </td>
+                          <td className="mono" style={{padding: '5px 6px'}}>
+                            {s.dependsOnCodes.join(', ') || 'start'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
           <div
             style={{display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 16}}
           >
@@ -1068,24 +1337,217 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
         </div>
       )}
 
-      {/* Import PRD Modal */}
+      {/* Import Design Spec & Customize SE Workflow Modal */}
       {showImport && (
         <div className="modal-backdrop" onClick={() => setShowImport(false)}>
-          <div className="modal-card" onClick={e => e.stopPropagation()}>
+          <div
+            className="modal-card"
+            style={{
+              maxHeight: '88vh',
+              overflowY: 'auto',
+              width: 'min(820px, 94vw)',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
             <h3 style={{marginTop: 0}}>
               {tr(
                 lang,
-                '从需求文档启动 Workflow 编排',
-                'Import Confirmed Requirements Document',
+                '从产品设计规格生成可定制 SE Workflow',
+                'Compile Customizable SE Workflow from Design Spec',
               )}
             </h3>
             <p style={{color: 'var(--text-muted)', marginTop: 4}}>
               {tr(
                 lang,
-                '解析 Markdown 需求文档生成 GoalSpec、任务拆解与可执行的并行/条件 Twin-Graph。',
-                'Parses Markdown requirements into structured GoalSpec and executable Twin-Graph.',
+                '支持上传或切换任意产品的设计规格 (Design Spec)，由 PM Agent 分解模块任务并生成可定制的并行/条件 Twin-Graph。具体产品仅为可切换测试用例。',
+                'Upload or select any product Design Spec; PM Agent decomposes modules into a customizable parallel/conditional Twin-Graph.',
               )}
             </p>
+
+            {/* Built-in Test Case Switcher + Local File Upload */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                flexWrap: 'wrap',
+                marginBottom: 10,
+              }}
+            >
+              <select
+                style={{flex: 1, minWidth: 260}}
+                value={selectedPresetId}
+                onChange={e => applyDesignPreset(e.target.value)}
+              >
+                <option value="">
+                  {tr(
+                    lang,
+                    '-- 选择内置测试产品设计规格 --',
+                    '-- Select Built-in Design Spec Case --',
+                  )}
+                </option>
+                {designSpecPresets.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {tr(
+                      lang,
+                      `${p.categoryZh}: ${p.nameZh}`,
+                      `${p.categoryEn}: ${p.nameEn}`,
+                    )}{' '}
+                    ({p.recommendedTemplate})
+                  </option>
+                ))}
+              </select>
+              <label className="btn btn-soft" style={{cursor: 'pointer'}}>
+                {tr(lang, '上传 .md/.txt 规格文件', 'Upload .md/.txt Spec')}
+                <input
+                  type="file"
+                  accept=".md,.markdown,.txt"
+                  style={{display: 'none'}}
+                  onChange={e => {
+                    handleUploadDesignSpecFile(e.target.files?.[0]);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+            </div>
+
+            {/* SE Workflow Customization Controls */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+                gap: 8,
+                marginBottom: 10,
+                padding: '10px 12px',
+                border: '1px solid var(--border-card)',
+                borderRadius: 8,
+                background: 'var(--bg-page)',
+              }}
+            >
+              <label>
+                <span style={{fontSize: 11, fontWeight: 600}}>
+                  {tr(lang, '流程模板', 'Workflow Template')}
+                </span>
+                <select
+                  value={templatePreset}
+                  onChange={e => {
+                    const next = e.target.value as WorkflowTemplatePreset;
+                    setTemplatePreset(next);
+                    if (next === 'microservice_hardened') {
+                      setIncludeSecurityPass(true);
+                      setIncludeHumanGate(true);
+                    } else if (next === 'rapid_ui_api') {
+                      setIncludeHumanGate(false);
+                      setIncludeSecurityPass(false);
+                    }
+                  }}
+                >
+                  <option value="fullstack_se">fullstack_se</option>
+                  <option value="microservice_hardened">
+                    microservice_hardened
+                  </option>
+                  <option value="rapid_ui_api">rapid_ui_api</option>
+                  <option value="custom">custom</option>
+                </select>
+              </label>
+              <label>
+                <span style={{fontSize: 11, fontWeight: 600}}>
+                  {tr(lang, 'PM 分解引擎', 'PM Decomposer')}
+                </span>
+                <select
+                  value={pmAgentMode}
+                  onChange={e =>
+                    setPmAgentMode(
+                      e.target.value as 'hybrid_llm' | 'structural',
+                    )
+                  }
+                >
+                  <option value="hybrid_llm">hybrid_llm</option>
+                  <option value="structural">structural</option>
+                </select>
+              </label>
+              <label>
+                <span style={{fontSize: 11, fontWeight: 600}}>
+                  {tr(lang, '最大并发 Worker', 'Max Parallel')}
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={6}
+                  value={maxParallelWorkers}
+                  onChange={e =>
+                    setMaxParallelWorkers(
+                      Math.max(1, Math.min(6, Number(e.target.value) || 1)),
+                    )
+                  }
+                />
+              </label>
+              <label>
+                <span style={{fontSize: 11, fontWeight: 600}}>
+                  {tr(lang, '预算上限 (USD)', 'Budget Limit ($)')}
+                </span>
+                <input
+                  type="number"
+                  min={0.5}
+                  step={0.5}
+                  value={budgetUsdLimit}
+                  onChange={e =>
+                    setBudgetUsdLimit(
+                      Math.max(0.5, Number(e.target.value) || 2.5),
+                    )
+                  }
+                />
+              </label>
+
+              <div
+                style={{
+                  gridColumn: '1 / -1',
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 14,
+                  fontSize: 12,
+                  paddingTop: 4,
+                }}
+              >
+                <label style={{display: 'flex', alignItems: 'center', gap: 5}}>
+                  <input
+                    type="checkbox"
+                    checked={includeHumanGate}
+                    onChange={e => setIncludeHumanGate(e.target.checked)}
+                  />
+                  {tr(
+                    lang,
+                    '包含人工审批闸 (Human Gate)',
+                    'Human Approval Gate',
+                  )}
+                </label>
+                <label style={{display: 'flex', alignItems: 'center', gap: 5}}>
+                  <input
+                    type="checkbox"
+                    checked={includeSecurityPass}
+                    onChange={e => setIncludeSecurityPass(e.target.checked)}
+                  />
+                  {tr(lang, '安全/幂等加固节点', 'Security Hardening Pass')}
+                </label>
+                <label style={{display: 'flex', alignItems: 'center', gap: 5}}>
+                  <input
+                    type="checkbox"
+                    checked={includeQaAudit}
+                    onChange={e => setIncludeQaAudit(e.target.checked)}
+                  />
+                  {tr(lang, '独立 QA 对抗审校', 'Adversarial QA Audit')}
+                </label>
+                <label style={{display: 'flex', alignItems: 'center', gap: 5}}>
+                  <input
+                    type="checkbox"
+                    checked={dddStrictCheck}
+                    onChange={e => setDddStrictCheck(e.target.checked)}
+                  />
+                  {tr(lang, 'DDD 术语漂移校验', 'DDD Terminology Guard')}
+                </label>
+              </div>
+            </div>
+
             <div
               style={{
                 display: 'grid',
@@ -1122,7 +1584,7 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
             </div>
             <textarea
               className="mono"
-              rows={13}
+              rows={11}
               value={importMd}
               onChange={e => setImportMd(e.target.value)}
             />
@@ -1147,7 +1609,145 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                 disabled={busy || !importMd.trim()}
                 onClick={() => void handleImportPrd()}
               >
-                {tr(lang, '解析并生成编排草图', 'Parse & Generate Twin-Graph')}
+                {tr(
+                  lang,
+                  'PM 分解并生成可定制编排图',
+                  'PM Decompose & Compile Twin-Graph',
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Export Workflow Plan Modal */}
+      {exportPlan && (
+        <div className="modal-backdrop" onClick={() => setExportPlan(null)}>
+          <div
+            className="modal-card"
+            style={{
+              maxHeight: '88vh',
+              overflowY: 'auto',
+              width: 'min(800px, 94vw)',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 8,
+                marginBottom: 8,
+              }}
+            >
+              <h3 style={{margin: 0}}>
+                {exportPlan.code} · {exportPlan.title}
+              </h3>
+              <div className="nav-pills" style={{marginLeft: 0}}>
+                <button
+                  type="button"
+                  className={`nav-pill ${exportTab === 'markdown' ? 'active' : ''}`}
+                  onClick={() => setExportTab('markdown')}
+                >
+                  Markdown WBS
+                </button>
+                <button
+                  type="button"
+                  className={`nav-pill ${exportTab === 'mermaid' ? 'active' : ''}`}
+                  onClick={() => setExportTab('mermaid')}
+                >
+                  Mermaid DAG
+                </button>
+                <button
+                  type="button"
+                  className={`nav-pill ${exportTab === 'json' ? 'active' : ''}`}
+                  onClick={() => setExportTab('json')}
+                >
+                  JSON
+                </button>
+              </div>
+            </div>
+            <pre
+              className="mono"
+              style={{
+                background: 'var(--bg-page)',
+                padding: 12,
+                borderRadius: 8,
+                fontSize: 11.5,
+                maxHeight: 400,
+                overflow: 'auto',
+                whiteSpace: 'pre-wrap',
+                margin: 0,
+              }}
+            >
+              {exportTab === 'markdown'
+                ? exportPlan.markdown
+                : exportTab === 'mermaid'
+                  ? exportPlan.mermaid
+                  : JSON.stringify(exportPlan.json, null, 2)}
+            </pre>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 8,
+                marginTop: 12,
+              }}
+            >
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  const text =
+                    exportTab === 'markdown'
+                      ? exportPlan.markdown
+                      : exportTab === 'mermaid'
+                        ? exportPlan.mermaid
+                        : JSON.stringify(exportPlan.json, null, 2);
+                  void navigator.clipboard?.writeText(text);
+                  setCopiedExport(true);
+                }}
+              >
+                {copiedExport
+                  ? tr(lang, '已复制!', 'Copied!')
+                  : tr(lang, '复制到剪贴板', 'Copy')}
+              </button>
+              <button
+                type="button"
+                className="btn btn-soft"
+                onClick={() => {
+                  const ext =
+                    exportTab === 'markdown'
+                      ? 'md'
+                      : exportTab === 'mermaid'
+                        ? 'mmd'
+                        : 'json';
+                  const text =
+                    exportTab === 'markdown'
+                      ? exportPlan.markdown
+                      : exportTab === 'mermaid'
+                        ? exportPlan.mermaid
+                        : JSON.stringify(exportPlan.json, null, 2);
+                  const blob = new Blob([text], {
+                    type: 'text/plain;charset=utf-8',
+                  });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `${exportPlan.code}-plan.${ext}`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                {tr(lang, '下载文件', 'Download File')}
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => setExportPlan(null)}
+              >
+                {tr(lang, '关闭', 'Close')}
               </button>
             </div>
           </div>

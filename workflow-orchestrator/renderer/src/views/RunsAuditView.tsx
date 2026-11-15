@@ -1,7 +1,9 @@
-import {type ReactElement, useState} from 'react';
+import {type ReactElement, useEffect, useState} from 'react';
 import type {EvidenceSearchHit} from '../../../src/shared/api';
 import type {
   AuditLedgerEntry,
+  ConstitutionRule,
+  RehydrationCapsule,
   WorkflowRunRecord,
   WorkflowVersionSnapshot,
 } from '../../../src/shared/types';
@@ -14,14 +16,71 @@ interface RunsAuditViewProps {
   readonly versions: readonly WorkflowVersionSnapshot[];
   readonly runs: readonly WorkflowRunRecord[];
   readonly recentAudit: readonly AuditLedgerEntry[];
+  readonly rehydrationCapsules: readonly RehydrationCapsule[];
+  readonly constitution: ConstitutionRule;
+  readonly onRefresh: () => Promise<void>;
   readonly onOpenRun: (runId: string) => void;
 }
 
 export function RunsAuditView(props: RunsAuditViewProps): ReactElement {
-  const {lang, versions, runs, recentAudit, onOpenRun} = props;
+  const {
+    lang,
+    versions,
+    runs,
+    recentAudit,
+    rehydrationCapsules,
+    constitution,
+    onRefresh,
+    onOpenRun,
+  } = props;
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<readonly EvidenceSearchHit[] | null>(null);
   const [searching, setSearching] = useState(false);
+
+  const [constMd, setConstMd] = useState(constitution.markdown);
+  const [blockedCmds, setBlockedCmds] = useState(
+    constitution.blockedCommands.join('\n'),
+  );
+  const [savingConst, setSavingConst] = useState(false);
+  const [constSavedMsg, setConstSavedMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    setConstMd(constitution.markdown);
+    setBlockedCmds(constitution.blockedCommands.join('\n'));
+  }, [
+    constitution.updatedAt,
+    constitution.markdown,
+    constitution.blockedCommands,
+  ]);
+
+  const handleSaveConstitution = async (): Promise<void> => {
+    setSavingConst(true);
+    setConstSavedMsg(null);
+    try {
+      await orchApi.saveConstitution({
+        markdown: constMd,
+        blockedCommands: blockedCmds
+          .split(/\r?\n/)
+          .map(s => s.trim())
+          .filter(Boolean),
+      });
+      setConstSavedMsg(
+        tr(
+          lang,
+          '工程宪法与禁用指令已保存并生效。',
+          'Constitution & command blocks updated.',
+        ),
+      );
+      await onRefresh();
+    } finally {
+      setSavingConst(false);
+    }
+  };
+
+  const handleReanchor = async (workflowId: string): Promise<void> => {
+    await orchApi.markWorkflowReviewed(workflowId);
+    await onRefresh();
+  };
 
   const handleSearch = async (): Promise<void> => {
     if (!query.trim()) {
@@ -252,7 +311,7 @@ export function RunsAuditView(props: RunsAuditViewProps): ReactElement {
                       style={{fontSize: 11, color: 'var(--text-muted)'}}
                     >
                       {r.versionTag} · {r.completedNodes}/{r.totalNodes} done ·
-                      rework {r.reworkCount}
+                      rework {r.reworkCount} · ${(r.spentUsd ?? 0).toFixed(4)}
                     </div>
                   </div>
                   <button
@@ -266,6 +325,145 @@ export function RunsAuditView(props: RunsAuditViewProps): ReactElement {
               ))
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Ebbinghaus Re-hydration & Engineering Constitution */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 16,
+          marginTop: 16,
+        }}
+      >
+        <div className="card">
+          <strong style={{fontSize: 13.5}}>
+            {tr(
+              lang,
+              '人机认知记忆胶囊 (Ebbinghaus Re-hydration)',
+              'Human × Agent Re-hydration Capsules',
+            )}
+          </strong>
+          <div style={{marginTop: 8}}>
+            {rehydrationCapsules.length === 0 ? (
+              <div style={{color: 'var(--text-muted)'}}>
+                {tr(lang, '暂无编排工作流胶囊。', 'No capsules computed yet.')}
+              </div>
+            ) : (
+              rehydrationCapsules.map(c => (
+                <div
+                  key={c.workflowId}
+                  style={{
+                    padding: '8px 10px',
+                    border: '1px solid var(--border-card)',
+                    borderRadius: 6,
+                    marginBottom: 8,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 8,
+                    }}
+                  >
+                    <div>
+                      <span className="mono tag tag-indigo">
+                        {c.workflowCode}
+                      </span>{' '}
+                      <span
+                        className={`tag ${
+                          c.tier === 'warm'
+                            ? 'tag-green'
+                            : c.tier === 'delta_30s'
+                              ? 'tag-indigo'
+                              : 'tag-amber'
+                        }`}
+                      >
+                        {c.tier} · {Math.round(c.retentionScore * 100)}%
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-soft"
+                      onClick={() => void handleReanchor(c.workflowId)}
+                    >
+                      {tr(lang, '人工已复核重锚', 'Re-Anchor')}
+                    </button>
+                  </div>
+                  <div
+                    className="mono"
+                    style={{
+                      fontSize: 11,
+                      color: 'var(--text-muted)',
+                      marginTop: 4,
+                    }}
+                  >
+                    {c.elapsedHours.toFixed(1)}h elapsed · stability{' '}
+                    {c.stabilityHours.toFixed(1)}h · entropy{' '}
+                    {c.mutationEntropy.toFixed(2)}
+                  </div>
+                  <div style={{fontSize: 12, marginTop: 4}}>
+                    {c.autonomousDeltaBullets[0] ?? c.northStarGoal}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="card">
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 8,
+            }}
+          >
+            <strong style={{fontSize: 13.5}}>
+              {tr(
+                lang,
+                '全局工程宪法与高危指令沙箱拦截 (Constitution)',
+                'Global Engineering Constitution & Guardrails',
+              )}
+            </strong>
+            <button
+              type="button"
+              className="btn btn-sm btn-primary"
+              disabled={savingConst}
+              onClick={() => void handleSaveConstitution()}
+            >
+              {tr(lang, '保存并立即生效', 'Save & Apply')}
+            </button>
+          </div>
+          {constSavedMsg && (
+            <div style={{fontSize: 11.5, color: '#15803d', marginBottom: 6}}>
+              {constSavedMsg}
+            </div>
+          )}
+          <textarea
+            className="mono"
+            rows={5}
+            value={constMd}
+            onChange={e => setConstMd(e.target.value)}
+            style={{marginBottom: 8}}
+          />
+          <div style={{fontSize: 11.5, fontWeight: 600, marginBottom: 4}}>
+            {tr(
+              lang,
+              '沙箱黑名单命令模式 (每行一个)',
+              'Blocked Command Patterns (one per line)',
+            )}
+          </div>
+          <textarea
+            className="mono"
+            rows={3}
+            value={blockedCmds}
+            onChange={e => setBlockedCmds(e.target.value)}
+          />
         </div>
       </div>
 

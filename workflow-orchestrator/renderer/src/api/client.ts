@@ -2,6 +2,7 @@ import type {
   BootstrapSnapshot,
   ConfirmVersionRequest,
   EvidenceSearchHit,
+  ExportWorkflowPlanResponse,
   ImportRequirementsRequest,
   OrchestratorPreloadBridge,
   OrchestratorSseEvent,
@@ -19,7 +20,13 @@ import type {
 import type {
   CapabilityAdapterManifest,
   CapabilityHealthProfile,
+  ConstitutionRule,
+  DomainTermEntry,
+  McpServerEntry,
   ModelProviderConfig,
+  RehydrationCapsule,
+  SkillEntry,
+  WorkflowRecord,
   WorkflowVersionSnapshot,
   WorkspaceEntry,
 } from '../../../src/shared/types';
@@ -35,6 +42,7 @@ export interface DoctorReportDto {
   readonly gitVersion: string;
   readonly nodeVersion: string;
   readonly capabilityHealth: readonly CapabilityHealthProfile[];
+  readonly prunedWorktrees?: readonly string[];
   readonly checkedAt: string;
 }
 
@@ -234,6 +242,89 @@ export const orchApi = {
 
   runDoctor: () =>
     apiFetch<DoctorReportDto>('/api/doctor', {method: 'POST', body: {}}),
+
+  exportWorkflowPlan: (workflowId: string) =>
+    apiFetch<ExportWorkflowPlanResponse>(`/api/workflows/${workflowId}/export`),
+
+  markWorkflowReviewed: (workflowId: string) =>
+    apiFetch<{
+      readonly workflow: WorkflowRecord;
+      readonly capsule: RehydrationCapsule;
+    }>(`/api/workflows/${workflowId}/review-anchor`, {
+      method: 'POST',
+      body: {},
+    }),
+
+  upsertDomainTerm: (body: {
+    readonly id?: string;
+    readonly workspaceId?: string;
+    readonly boundedContext: string;
+    readonly canonicalTerm: string;
+    readonly localLabel?: string;
+    readonly definition?: string;
+    readonly forbiddenAliases: readonly string[];
+  }) =>
+    apiFetch<{
+      readonly term: DomainTermEntry;
+      readonly domainTerms: readonly DomainTermEntry[];
+    }>('/api/ddd-terms', {method: 'POST', body}),
+
+  deleteDomainTerm: (id: string) =>
+    apiFetch<{readonly domainTerms: readonly DomainTermEntry[]}>(
+      `/api/ddd-terms/${id}/delete`,
+      {method: 'POST', body: {}},
+    ),
+
+  upsertSkill: (body: {
+    readonly id?: string;
+    readonly slug: string;
+    readonly title: string;
+    readonly category: SkillEntry['category'];
+    readonly content: string;
+  }) =>
+    apiFetch<{
+      readonly skill: SkillEntry;
+      readonly skills: readonly SkillEntry[];
+    }>('/api/skills', {method: 'POST', body}),
+
+  runDreamConsolidation: () =>
+    apiFetch<{
+      readonly consolidatedRuns: number;
+      readonly reinforcedSkills: number;
+      readonly distilledSkill: SkillEntry | null;
+      readonly capsules: readonly RehydrationCapsule[];
+      readonly totalSpentUsd: number;
+      readonly skills: readonly SkillEntry[];
+    }>('/api/dream/consolidate', {method: 'POST', body: {}}),
+
+  upsertMcpServer: (body: {
+    readonly id?: string;
+    readonly name: string;
+    readonly transport: 'http' | 'stdio';
+    readonly endpointOrCommand: string;
+    readonly description?: string;
+    readonly enabled?: boolean;
+    readonly toolsCount?: number;
+  }) =>
+    apiFetch<{
+      readonly mcpServer: McpServerEntry;
+      readonly mcpServers: readonly McpServerEntry[];
+    }>('/api/mcp-servers', {method: 'POST', body}),
+
+  probeMcpServer: (id: string) =>
+    apiFetch<{
+      readonly mcpServer: McpServerEntry;
+      readonly mcpServers: readonly McpServerEntry[];
+    }>(`/api/mcp-servers/${id}/probe`, {method: 'POST', body: {}}),
+
+  saveConstitution: (body: {
+    readonly markdown: string;
+    readonly blockedCommands: readonly string[];
+  }) =>
+    apiFetch<{readonly constitution: ConstitutionRule}>('/api/constitution', {
+      method: 'POST',
+      body,
+    }),
 
   subscribeSse: (
     onEvent: (evt: OrchestratorSseEvent) => void,
