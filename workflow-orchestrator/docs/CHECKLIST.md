@@ -36,3 +36,10 @@
 - [x] **Release `v0.1.0`: Prebuilt Downloadable Demo Artifacts**
   - [x] `scripts/package-release.mjs` (`npm run package:release`) generating `WorkflowOrchestrator-v0.1.0-win32-x64-desktop.zip` (`WorkflowOrchestrator.exe`) & `WorkflowOrchestrator-v0.1.0-portable-web.zip` (`Start-Demo.bat` / `start-demo.sh`)
   - [x] Extracted archive smoke checks passed for both desktop EXE (`ORCH_SMOKE_EXIT=1`) and portable web bundle (`Smoke /api/health HTTP 200`), uploaded to GitHub Release `v0.1.0`
+
+- [x] **Milestone 6 (`v0.2.0`): General Customizable SE Workflow & Advanced Subsystems**
+  - [x] `src/core/` (`presets.ts`, `pm-planner.ts`, `ddd.ts`, `cognitive.ts`) + `src/engines/` (`pm-agent.ts`, `dreaming.ts`)
+  - [x] `src/store/` (`domain_terms`, `skills`, `mcp_servers`, `constitution_rules`, `pm_reports`, token/USD cost columns)
+  - [x] `src/sandbox/` (`setBlockedCommandPatterns`, `cleanupOrphanWorktrees`) + HTTP/SSE endpoints (`/api/workflows/:id/export`, `/review-anchor`, `/ddd-terms`, `/skills`, `/dream/consolidate`, `/mcp-servers`, `/constitution`, `/doctor`)
+  - [x] Light DirectUI Workbench upgrades across `WorkflowsView`, `WorkstationView`, `CapabilitiesView`, `RunsAuditView`
+  - [x] `verify/*.verify.ts` gates expanded & passed + `v0.2.0` desktop/web release archives built, smoke-tested, pushed to `origin main`, and published on GitHub Releases

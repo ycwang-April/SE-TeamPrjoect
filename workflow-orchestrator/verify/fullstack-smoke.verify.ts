@@ -41,6 +41,10 @@ async function run(): Promise<void> {
     assert.ok(bootstrap.workspaces.length >= 1);
     assert.ok(bootstrap.workflows.length >= 1);
     assert.ok(bootstrap.capabilities.length >= 4);
+    assert.ok(bootstrap.designSpecPresets.length >= 3);
+    assert.ok(bootstrap.skills.length >= 1);
+    assert.ok(bootstrap.mcpServers.length >= 1);
+    assert.ok(bootstrap.constitution.blockedCommands.length >= 1);
 
     const sseAc = new AbortController();
     const sseResp = await fetch(
@@ -125,6 +129,47 @@ async function run(): Promise<void> {
       hits: Array<{id: string}>;
     };
     assert.ok(searchJson.hits.length > 0);
+
+    const exportResp = await fetch(
+      `${runtime.baseUrl}/api/workflows/${wf.workflow.id}/export`,
+      {headers},
+    );
+    assert.equal(exportResp.status, 200);
+    const exported = (await exportResp.json()) as {
+      mermaid: string;
+      markdown: string;
+    };
+    assert.ok(exported.mermaid.includes('flowchart LR'));
+
+    const anchorResp = await fetch(
+      `${runtime.baseUrl}/api/workflows/${wf.workflow.id}/review-anchor`,
+      {method: 'POST', headers, body: '{}'},
+    );
+    assert.equal(anchorResp.status, 200);
+
+    const dreamResp = await fetch(`${runtime.baseUrl}/api/dream/consolidate`, {
+      method: 'POST',
+      headers,
+      body: '{}',
+    });
+    assert.equal(dreamResp.status, 200);
+
+    const probeMcpResp = await fetch(
+      `${runtime.baseUrl}/api/mcp-servers/${bootstrap.mcpServers[0]!.id}/probe`,
+      {method: 'POST', headers, body: '{}'},
+    );
+    assert.equal(probeMcpResp.status, 200);
+
+    const doctorResp = await fetch(`${runtime.baseUrl}/api/doctor`, {
+      method: 'POST',
+      headers,
+      body: '{}',
+    });
+    assert.equal(doctorResp.status, 200);
+    const doctorJson = (await doctorResp.json()) as {
+      prunedWorktrees: unknown[];
+    };
+    assert.ok(Array.isArray(doctorJson.prunedWorktrees));
 
     if (existsSync(rendererDir)) {
       const htmlResp = await fetch(`${runtime.baseUrl}/`);

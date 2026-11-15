@@ -1,5 +1,13 @@
 # Changelog (`workflow-orchestrator`)
 
+## v0.2.0 — General Customizable SE Workflow, PM Agent & Engineering Subsystems
+- **General Design-Spec-to-Workflow Pipeline**: Added `PmAgentDecomposer` (`src/engines/pm-agent.ts`), SE Workflow Customization templates (`fullstack_se`, `microservice_hardened`, `rapid_ui_api`, `custom`), multi-module `## Modules` parsing, 3 switchable built-in product Design Spec test cases (`src/core/presets.ts`), `.md`/`.txt` spec upload, and one-click Plan Export (`Markdown WBS` / `Mermaid DAG` / `JSON`).
+- **DDD Ubiquitous Language & Terminology Drift Guard**: Added `src/core/ddd.ts` + SQLite `domain_terms` table + validator Level-4 `ddd_drift` checks + prompt injection + interactive DDD glossary tab.
+- **SkillsBank, Sleep-Time Dreaming & Ebbinghaus Re-hydration**: Added `src/core/cognitive.ts` + `src/engines/dreaming.ts` (`CognitiveConsolidator`) + `skills` table + Re-hydration capsule strip in `WorkstationView` and `RunsAuditView` with human Re-Anchor tracking.
+- **MCP Server Pool, Constitution Guardrails & Env Doctor Worktree Cleanup**: Added `mcp_servers` & `constitution_rules` tables, live blocked-command enforcement in `SandboxProcessRunner` + `ExecutionCertifier`, orphan Git worktree pruning (`cleanupOrphanWorktrees`) in `POST /api/doctor`, and `sovereignSoul` inline editing.
+- **Cost & Token Cache Telemetry**: Tracked `inputTokens`, `cachedTokens`, `outputTokens`, `spentUsd`, and `budgetUsdLimit` per attempt and run.
+- **Release Packaging**: Built `WorkflowOrchestrator-v0.2.0-win32-x64-desktop.zip` and `WorkflowOrchestrator-v0.2.0-portable-web.zip` with extracted runtime smoke checks.
+
 ## v0.1.0 — Release Packaging & Verification
 - Added `scripts/package-release.mjs` (`npm run package:release`) building standalone `WorkflowOrchestrator-v0.1.0-win32-x64-desktop.zip` (`WorkflowOrchestrator.exe`, zero-dependency Electron 44 + embedded Node 24 / `node:sqlite`) and `WorkflowOrchestrator-v0.1.0-portable-web.zip` (`Start-Demo.bat` / `start-demo.sh`).
 - Updated built-in default sample workspace & gate commands to `echo Verification gate passed` so standalone demo executables require no external Node binary on `PATH`.

@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import {mkdtempSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+import {exportWorkflowPlan} from '../src/core/pm-planner.ts';
 import {hasForwardCycle} from '../src/core/twin-graph.ts';
+import {CognitiveConsolidator} from '../src/engines/dreaming.ts';
 import {WorkflowPlannerEngine} from '../src/engines/planner.ts';
 import {OrchestratorStore} from '../src/store/database.ts';
 
@@ -163,8 +165,66 @@ function run(): void {
     assert.equal(store.getWorkflow(imported.workflow.id).status, 'locked');
     assert.ok(events.includes('workflow.updated'));
 
+    // 5. Design Spec Modules + Customizable SE Template + DDD Drift + Export + Cognitive Capsule
+    store.upsertDomainTerm({
+      boundedContext: 'Execution',
+      canonicalTerm: 'GraphNode',
+      forbiddenAliases: ['task_unit'],
+      definition: 'Typed DAG execution unit',
+    });
+    const customSpec = planner.importRequirements({
+      workspaceId: ws.id,
+      markdown: [
+        '# Modular Billing Pipeline',
+        '## Goal',
+        'Process settlement invoices using custom task_unit workers.',
+        '## Modules',
+        '- Core API: backend service (`src/api.ts`) for FR-01',
+        '- Compliance Guard: security audit (`src/sec.ts`) for FR-02',
+        '## Functional Requirements',
+        '- FR-01: Ingest invoice batches',
+        '- FR-02: Verify cryptographic signatures',
+        '## Acceptance Criteria',
+        '- AC-01: Signed receipts persisted',
+      ].join('\n'),
+      permissionTier: 'supervised',
+      customization: {
+        templatePreset: 'microservice_hardened',
+        includeHumanGate: false,
+        includeSecurityPass: true,
+        includeQaAudit: true,
+        dddStrictCheck: true,
+      },
+    });
+    assert.ok((customSpec.goalSpec.modules?.length ?? 0) >= 2);
+    assert.ok(!customSpec.nodes.some(n => n.kind === 'human_gate'));
+    assert.ok(customSpec.nodes.some(n => n.code.includes('SEC')));
+    assert.ok(
+      customSpec.validation.issues.some(i => i.category === 'ddd_drift'),
+      'Expected DDD forbidden alias drift warning for task_unit',
+    );
+    const exported = exportWorkflowPlan({
+      workflowTitle: customSpec.workflow.title,
+      goalSpec: customSpec.goalSpec,
+      nodes: customSpec.nodes,
+      edges: customSpec.edges,
+      customization: customSpec.workflow.customization,
+      pmReport: customSpec.pmReport,
+    });
+    assert.ok(exported.mermaid.includes('flowchart LR'));
+    assert.ok(exported.markdown.includes('## 2. PM Agent Task Decomposition'));
+
+    const consolidator = new CognitiveConsolidator();
+    const capBefore = consolidator.computeWorkflowCapsule(
+      store,
+      customSpec.workflow.id,
+    );
+    assert.ok(capBefore.retentionScore > 0 && capBefore.retentionScore <= 1);
+    const anchored = store.markWorkflowReviewed(customSpec.workflow.id);
+    assert.equal(anchored.spacedReviewCount, 1);
+
     console.log(
-      '[PASS] planner-and-validator: PRD -> GoalSpec -> WBS/Graph -> Impact -> Fail-Closed -> Trial -> v1.0',
+      '[PASS] planner-and-validator: DesignSpec Modules + Customization + DDD Guard + Export + Capsule',
     );
   } finally {
     store.close();

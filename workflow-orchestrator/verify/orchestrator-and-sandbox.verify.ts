@@ -192,9 +192,20 @@ async function run(): Promise<void> {
       ),
       'Expected audit trail of non-destructive Git rescue ref rewind',
     );
+    assert.ok(
+      finished2.rehydrationCapsule?.workflowId === reworkWf.workflow.id,
+    );
+
+    // 4. Constitution blocked-command enforcement + orphan worktree cleanup
+    runner.setBlockedCommandPatterns(['danger_custom_block']);
+    await assert.rejects(
+      () => runner.runCommandString('echo danger_custom_block', repoDir),
+      /POLICY_BLOCKED/,
+    );
+    await worktrees.cleanupOrphanWorktrees(repoDir);
 
     console.log(
-      '[PASS] orchestrator-and-sandbox: Worktree + HumanGate + GhostNode + ConditionalSkip + BoundedRework + FTS5',
+      '[PASS] orchestrator-and-sandbox: Worktree + HumanGate + GhostNode + Rework + Constitution + Cleanup',
     );
   } finally {
     store.close();

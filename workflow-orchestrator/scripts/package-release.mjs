@@ -13,7 +13,7 @@ import {join, resolve} from 'node:path';
 import process from 'node:process';
 
 const root = resolve(import.meta.dirname, '..');
-const pkgVersion = '0.1.0';
+const pkgVersion = '0.2.0';
 const releaseDir = resolve(root, 'release');
 
 function runChecked(cmd, args, cwd = root) {
@@ -96,13 +96,13 @@ rmSync(releaseDir, {recursive: true, force: true});
 mkdirSync(releaseDir, {recursive: true});
 
 const demoReadme = [
-  'Workflow Orchestrator — Requirements-to-Execution Real-Time Workbench (v0.1.0)',
-  '================================================================================',
+  'Workflow Orchestrator — Design-Spec-to-Execution Customizable SE Workbench (v0.2.0)',
+  '====================================================================================',
   '',
   'Quick Demo Guide (ZH / EN):',
   '',
   '1. Windows Desktop (Zero dependencies):',
-  '   Unzip WorkflowOrchestrator-v0.1.0-win32-x64-desktop.zip and double-click:',
+  '   Unzip WorkflowOrchestrator-v0.2.0-win32-x64-desktop.zip and double-click:',
   '     WorkflowOrchestrator.exe',
   '',
   '2. Cross-Platform Portable Web Workbench (Requires Node.js >= 24):',
@@ -111,12 +111,16 @@ const demoReadme = [
   '',
   'What to explore inside the Workbench:',
   '  - Design Studio (编排设计台):',
-  '    Select the pre-seeded WF-001 sample workflow (or click "+ Import PRD"),',
-  '    inspect GoalSpec (FR/AC/Assumptions), WBS & Twin-Graph canvas, click a node',
-  '    to review Planning Rationale, run "Run Trial" -> "Confirm & Lock v1.0".',
+  '    Click "+ Import Design Spec" to switch between 3 built-in product test cases',
+  '    or upload any custom .md/.txt Design Spec, customize the SE workflow template',
+  '    (Human Gate / Security Pass / QA / DDD Guard / Parallelism), inspect PM Agent',
+  '    decomposition modules & Twin-Graph, export WBS/Mermaid/JSON, run Trial -> Lock v1.0.',
   '  - Live Orchestrator (实时编排控制台):',
-  '    Launch a live run from v1.0, watch parallel branches & conditional skip,',
-  '    inspect step transcripts/checkpoints, or test Pause/Resume/GhostNode/Restore.',
+  '    Launch a live run, inspect Token & USD telemetry, Ebbinghaus Re-hydration capsule,',
+  '    step transcripts/checkpoints, or test Pause/Resume/GhostNode/Restore.',
+  '  - Capabilities / SkillsBank / MCP / DDD + Runs & Constitution Tabs:',
+  '    Edit sovereignSoul prompts, run Sleep-Time Dreaming, probe MCP tools, manage DDD',
+  '    forbidden aliases, and enforce Engineering Constitution blocked-command guardrails.',
   '  - Top-right controls: Switch ZH / EN language or press Ctrl+K.',
   '',
   'Note: Live multi-node execution with Git worktree isolation uses `git` on PATH.',

@@ -1,8 +1,8 @@
 # Workflow Orchestrator (`workflow-orchestrator`)
 
-Requirements-to-Execution Real-Time Workflow Orchestration Subsystem.
+Design-Spec-to-Execution Customizable SE Workflow Orchestration Subsystem (`v0.2.0`).
 
-This subsystem begins at receiving a confirmed **Requirements Document (Markdown / PRD)** and handles autonomous planning, 3-level consistency validation, dual-mode graph/form design editing with change impact analysis, dry-run simulation, immutable version snapshots, and real-time multi-node orchestration inside isolated Git worktrees.
+This subsystem takes **any product's Design Spec (`Markdown`)**, invokes a **Hybrid PM Agent Decomposer** (`PmAgentDecomposer`), compiles a **general, customizable SE Workflow & Twin-Graph** (where concrete software projects act as switchable built-in test cases), runs **4-level validation (structural + contract + capability + DDD terminology drift)**, simulates isolated Dry-Run trials, locks immutable versions, and orchestrates multi-node execution inside isolated Git worktrees with **SkillsBank + Sleep-Time Dreaming**, **Ebbinghaus Human × Agent Re-hydration**, **MCP Server Pool**, **Engineering Constitution sandboxing**, and **USD/Token cost telemetry**.
 
 ## Quick Start
 
@@ -18,10 +18,10 @@ npm run verify:gates
 
 ### Prebuilt Downloadable Demo (Zero-Build Launch)
 
-Download from **GitHub Releases (`v0.1.0`)** or generate locally with `npm run package:release`:
+Download from **GitHub Releases (`v0.2.0`)** or generate locally with `npm run package:release`:
 
-1. **`WorkflowOrchestrator-v0.1.0-win32-x64-desktop.zip`** — Standalone Windows x64 Electron Desktop App (no Node.js or `npm install` needed): unzip and double-click `WorkflowOrchestrator.exe`.
-2. **`WorkflowOrchestrator-v0.1.0-portable-web.zip`** — Lightweight cross-platform bundle (requires Node.js >= 24): double-click `Start-Demo.bat` (Windows) or run `./start-demo.sh` (macOS/Linux) to launch and open the browser workbench automatically.
+1. **`WorkflowOrchestrator-v0.2.0-win32-x64-desktop.zip`** — Standalone Windows x64 Electron Desktop App (no Node.js or `npm install` needed): unzip and double-click `WorkflowOrchestrator.exe`.
+2. **`WorkflowOrchestrator-v0.2.0-portable-web.zip`** — Lightweight cross-platform bundle (requires Node.js >= 24): double-click `Start-Demo.bat` (Windows) or run `./start-demo.sh` (macOS/Linux) to launch and open the browser workbench automatically.
 
 ### Launch Modes from Source
 
@@ -45,13 +45,13 @@ Download from **GitHub Releases (`v0.1.0`)** or generate locally with `npm run p
 | Layer | Directory / Entry | Responsibility |
 | --- | --- | --- |
 | **Shared Contracts** | `src/shared/` (`types.ts`, `api.ts`, `validation.ts`, `errors.ts`) | Domain models, HTTP/SSE DTOs, strict JSON validators, fail-closed errors |
-| **Domain Core** | `src/core/` (`spec-parser.ts`, `twin-graph.ts`, `validator.ts`, `trial-simulator.ts`, `telemetry.ts`, `policy.ts`) | PRD -> `GoalSpec` parsing, hierarchical WBS + Twin-Graph synthesis, forward cycle & conditional/join resolution, 3-level validation, Change Impact Analysis, isolated Trial Run |
-| **Persistence** | `src/store/` (`schema.ts`, `database.ts`) | `node:sqlite` WAL database, transaction savepoints, FTS5 full-text evidence index |
-| **Sandbox** | `src/sandbox/` (`process-runner.ts`, `git-worktree.ts`) | Symlink-safe `resolveInside` workspace confinement, bounded timeouts, isolated Git worktrees, Git checkpoint tags, non-destructive `refs/orchestrator-backup/...` rescue refs |
+| **Domain Core** | `src/core/` (`spec-parser.ts`, `pm-planner.ts`, `presets.ts`, `ddd.ts`, `cognitive.ts`, `twin-graph.ts`, `validator.ts`, `trial-simulator.ts`, `telemetry.ts`, `policy.ts`) | Design Spec (`## Modules`) parsing, customizable SE workflow templates & 3 built-in product test cases, Plan export (`Markdown WBS` / `Mermaid` / `JSON`), DDD terminology drift detection, Ebbinghaus cognitive retention decay math, 4-level validation, Change Impact, isolated Trial Run |
+| **Persistence** | `src/store/` (`schema.ts`, `database.ts`) | `node:sqlite` WAL database (`domain_terms`, `skills`, `mcp_servers`, `constitution_rules`, `pm_reports`), transaction savepoints, FTS5 full-text evidence index |
+| **Sandbox** | `src/sandbox/` (`process-runner.ts`, `git-worktree.ts`) | Symlink-safe `resolveInside` workspace confinement, live Engineering Constitution blocked-command enforcement, isolated Git worktrees + orphan pruning (`cleanupOrphanWorktrees`), Git checkpoints, non-destructive rescue refs |
 | **Capabilities** | `src/adapters/` (`resource-broker.ts`, `tool-runner.ts`, `cli-stream.ts`, `acp-client.ts`, `native-api.ts`) | Concurrency slot broker, ACP client, CLI JSONL stream parser, native OpenAI-compatible / Anthropic API runner (with deterministic offline synthesis when unconfigured) |
-| **Engines** | `src/engines/` (`planner.ts`, `certifier.ts`, `orchestrator.ts`) | Draft lifecycle + version freezing, shell gate & independent QA certification, concurrent frontier execution, Pause/Resume/Retry/Human Gate/`GhostNode`/Bounded Rework |
+| **Engines** | `src/engines/` (`pm-agent.ts`, `dreaming.ts`, `planner.ts`, `certifier.ts`, `orchestrator.ts`) | Hybrid LLM + structural PM Agent decomposer, Sleep-Time Dreaming & Ebbinghaus Re-hydration consolidator, draft lifecycle + version freezing, shell gate & QA certification, concurrent frontier orchestration with USD/token cost tracking |
 | **Host & Desktop** | `src/server/` (`http-router.ts`, `secret-vault.ts`, `runtime.ts`), `src/electron/` | `127.0.0.1` loopback HTTP REST + multiplexed SSE with Bearer auth, Electron 44 sandboxed window shell |
-| **Workbench UI** | `renderer/src/` (`WorkflowsView.tsx`, `WorkstationView.tsx`, `CapabilitiesView.tsx`, `RunsAuditView.tsx`, `TwinGraphCanvas.tsx`) | Crisp Light DirectUI (`#f8fafc` / `#ffffff`) desktop/web console with `ZH` / `EN` toggle |
+| **Workbench UI** | `renderer/src/` (`WorkflowsView.tsx`, `WorkstationView.tsx`, `CapabilitiesView.tsx`, `RunsAuditView.tsx`, `TwinGraphCanvas.tsx`) | Crisp Light DirectUI (`#f8fafc` / `#ffffff`) workbench (`ZH`/`EN`): Design Spec test case switcher & `.md` upload, SE workflow customization, WBS/Mermaid export, Re-hydration capsules, SkillsBank/Dreaming, MCP Pool, DDD Glossary, Constitution Guardrails |
 | **Verification** | `verify/` (`planner-and-validator.verify.ts`, `orchestrator-and-sandbox.verify.ts`, `fullstack-smoke.verify.ts`) | End-to-end automated verification gates |
 
 ## Design Documentation
