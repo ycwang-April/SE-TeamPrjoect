@@ -203,6 +203,22 @@ export class WorkflowPlannerEngine {
     });
   }
 
+  importStructuredRequirements(
+    workspaceId: string,
+    source: Omit<GoalSpec, 'id' | 'workflowId' | 'updatedAt'>,
+  ): WorkflowDetailSnapshot {
+    const workspace = this.store.getWorkspace(workspaceId);
+    const workflowId = `wf-${randomUUID().slice(0, 8)}`;
+    const goalSpec: GoalSpec = {...source, id: `goal-${workflowId}`, workflowId,
+      updatedAt: new Date().toISOString()};
+    const permissionTier = 'supervised';
+    const {report, customization} = this.pmAgent.decomposeStructural({workflowId, goalSpec, permissionTier});
+    return this.persistImportedWorkflow({
+      workspaceId, workflowId, goalSpec, report, customization, permissionTier,
+      verifyCommand: workspace.verifyCommand, maxReworkIterations: 3,
+    });
+  }
+
   updateGoalSpec(
     workflowId: string,
     patch: UpdateGoalSpecRequest,

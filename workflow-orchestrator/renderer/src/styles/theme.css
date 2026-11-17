@@ -1,6 +1,7 @@
 /* Crisp DirectUI Light Design System (Anthropic Serif + Noto Serif SC) */
 
 @import '@xyflow/react/dist/style.css';
+@import '../views/requirements.css';
 
 :root {
   --bg-page: #f8fafc;

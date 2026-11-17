@@ -214,7 +214,6 @@ export class OrchestratorStore {
        ON CONFLICT(id) DO UPDATE SET
          name = excluded.name,
          protocol = excluded.protocol,
-         base_url = excluded.base_url,
          models_json = excluded.models_json,
          updated_at = excluded.updated_at`,
     );

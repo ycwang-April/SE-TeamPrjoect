@@ -11,11 +11,12 @@ import {
 } from './components/Icons';
 import {formatRunStatus, tr, type UiLang} from './i18n';
 import {CapabilitiesView} from './views/CapabilitiesView';
+import {RequirementsView} from './views/RequirementsView';
 import {RunsAuditView} from './views/RunsAuditView';
 import {WorkflowsView} from './views/WorkflowsView';
 import {WorkstationView} from './views/WorkstationView';
 
-type TopSection = 'design' | 'live' | 'capabilities' | 'audit';
+type TopSection = 'design' | 'requirements' | 'live' | 'capabilities' | 'audit';
 
 export function App(): ReactElement {
   const [lang, setLang] = useState<UiLang>('ZH');
@@ -81,6 +82,7 @@ export function App(): ReactElement {
     .includes('win');
 
   const quickCommands = [
+    {label: tr(lang, '切换到 · 需求工程', 'Go to · Requirements'), run: () => setSection('requirements')},
     {
       label: tr(lang, '切换到 · 编排设计台', 'Go to · Design Studio'),
       run: () => setSection('design'),
@@ -125,6 +127,13 @@ export function App(): ReactElement {
           </div>
 
           <nav className="nav-pills">
+            <button
+              type="button"
+              className={`nav-pill ${section === 'requirements' ? 'active' : ''}`}
+              onClick={() => setSection('requirements')}
+            >
+              <FileTextIcon size={14} /> {tr(lang, '需求工程', 'Requirements')}
+            </button>
             <button
               type="button"
               className={`nav-pill ${section === 'design' ? 'active' : ''}`}
@@ -220,6 +229,13 @@ export function App(): ReactElement {
               )}
             </div>
           </div>
+        ) : section === 'requirements' ? (
+          <RequirementsView lang={lang} providers={snapshot.modelProviders} workspaces={snapshot.workspaces}
+            onOpenWorkflow={workflowId => {
+              setSelectedWorkflowId(workflowId);
+              setSection('design');
+            }}
+          />
         ) : section === 'design' ? (
           <WorkflowsView
             lang={lang}

@@ -5,6 +5,7 @@
 
 import {mkdirSync} from 'node:fs';
 import {join, resolve} from 'node:path';
+import {HamaService} from '../../../requirements-engineering/src/service.ts';
 import {CapabilityHub} from '../adapters/index.ts';
 import {ExecutionCertifier} from '../engines/certifier.ts';
 import {WorkflowOrchestratorEngine} from '../engines/orchestrator.ts';
@@ -73,6 +74,8 @@ export async function createOrchestratorRuntime(
       serverRef?.broadcast(type, ids, payload);
     },
   });
+  const requirements = new HamaService(store, orchestrator, planner, hub,
+    providerId => vault.resolveProvider(store, providerId), join(dataDir, 'document-runs'));
 
   if (options.seedSample !== false) {
     store.seedSampleWorkflowIfEmpty(join(dataDir, 'sample-workspace'));
@@ -86,11 +89,13 @@ export async function createOrchestratorRuntime(
     hub,
     planner,
     orchestrator,
+    requirements,
     staticDir: options.staticDir ?? null,
   });
   serverRef = server;
 
   await server.start(options.port ?? 0);
+  orchestrator.recoverRegisteredRuns();
 
   return {
     dataDir,
@@ -107,6 +112,7 @@ export async function createOrchestratorRuntime(
     sessionToken: server.getSessionToken(),
     stop: async () => {
       await server.stop();
+      await orchestrator.shutdown();
       store.close();
     },
   };

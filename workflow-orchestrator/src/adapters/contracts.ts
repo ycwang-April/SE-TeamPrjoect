@@ -36,6 +36,9 @@ export interface CapabilityInvocationRequest {
   readonly gateCommand?: string | null;
   readonly fileScope: readonly string[];
   readonly readOnly: boolean;
+  readonly textOnly?: boolean;
+  readonly providerId?: string;
+  readonly maxOutputTokens?: number;
   readonly timeoutMs?: number;
   readonly prioritySlot?: boolean;
   readonly signal?: AbortSignal;
