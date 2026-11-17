@@ -323,6 +323,24 @@ export class OrchestratorHttpServer {
     return presented.length > 0 && constantTimeMatch(presented, this.token);
   }
 
+  private serveHtmlWithBootstrap(filePath: string, res: ServerResponse): void {
+    let html = readFileSync(filePath, 'utf8');
+    const bootScript = `<script>window.__ORCH_BOOT__=${JSON.stringify({
+      apiBaseUrl: this.getBaseUrl(),
+      token: this.token,
+    })};</script>`;
+    if (html.includes('</head>')) {
+      html = html.replace('</head>', `${bootScript}</head>`);
+    } else {
+      html = `${bootScript}${html}`;
+    }
+    res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+    });
+    res.end(html);
+  }
+
   private serveStaticAsset(pathname: string, res: ServerResponse): boolean {
     if (!this.staticDir || !existsSync(this.staticDir)) {
       return false;
@@ -332,13 +350,16 @@ export class OrchestratorHttpServer {
     if (!abs.startsWith(resolve(this.staticDir)) || !existsSync(abs)) {
       const indexFile = join(this.staticDir, 'index.html');
       if (existsSync(indexFile)) {
-        res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8'});
-        res.end(readFileSync(indexFile));
+        this.serveHtmlWithBootstrap(indexFile, res);
         return true;
       }
       return false;
     }
     const ext = extname(abs).toLowerCase();
+    if (ext === '.html') {
+      this.serveHtmlWithBootstrap(abs, res);
+      return true;
+    }
     res.writeHead(200, {
       'Content-Type': MIME_BY_EXT[ext] ?? 'application/octet-stream',
     });

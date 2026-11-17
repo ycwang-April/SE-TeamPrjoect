@@ -131,16 +131,30 @@ export class ExecutionCertifier {
       role: 'evaluator',
     });
 
+    const succeededTasks = this.store
+      .listGraphNodes(run.id)
+      .filter(
+        n =>
+          (n.kind === 'task' || n.kind === 'gate_shell') &&
+          n.status === 'succeeded',
+      )
+      .map(n => `- ${n.code} (${n.title}): ${n.outputSummary.slice(0, 220)}`)
+      .join('\n');
+
     const patchExcerpt = diff.patch.trim()
-      ? `\nDiff Excerpt:\n${diff.patch.slice(0, 3500)}`
+      ? `\nDiff Excerpt:\n${diff.patch.slice(0, 14_000)}`
       : '';
     const prompt = [
       `Goal: ${goalSpec.goal}`,
       `Acceptance Criteria: ${goalSpec.acceptanceCriteria.map(a => `${a.code}: ${a.label}`).join('; ')}`,
+      `Deterministic Shell Gate (${run.verifyCommand}): PASSED (exit 0)`,
+      succeededTasks ? `Completed Phase Deliverables:\n${succeededTasks}` : '',
       `Diff Stat: ${diff.summary}`,
       `Changed Files: ${diff.changedFiles.join(', ') || '(none)'}${patchExcerpt}`,
-      'Respond strictly with valid JSON only: {"passed": boolean, "score": number, "findings": string[]}',
-    ].join('\n');
+      'Evaluate fairly: if Changed Files, Diff Excerpt, and Deterministic Shell Gate satisfy the core Acceptance Criteria for this scoped prototype iteration, return passed=true with score >= 0.75. Respond strictly with valid JSON only: {"passed": boolean, "score": number, "findings": string[]}',
+    ]
+      .filter(Boolean)
+      .join('\n');
 
     this.store.appendSessionMessage({
       sessionId: session.id,

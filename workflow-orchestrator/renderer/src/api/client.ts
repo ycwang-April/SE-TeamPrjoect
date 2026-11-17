@@ -34,6 +34,10 @@ import type {
 declare global {
   interface Window {
     readonly workflowOrchestrator?: OrchestratorPreloadBridge;
+    readonly __ORCH_BOOT__?: {
+      readonly apiBaseUrl: string;
+      readonly token: string;
+    };
   }
 }
 
@@ -56,9 +60,22 @@ function getBridgeConfig(): {
       sessionToken: window.workflowOrchestrator.sessionToken,
     };
   }
+  if (window.__ORCH_BOOT__?.token) {
+    return {
+      apiBaseUrl:
+        window.__ORCH_BOOT__.apiBaseUrl ||
+        (window.location.protocol.startsWith('http')
+          ? window.location.origin
+          : 'http://127.0.0.1:4190'),
+      sessionToken: window.__ORCH_BOOT__.token,
+    };
+  }
   const params = new URLSearchParams(window.location.search);
+  const originFallback = window.location.protocol.startsWith('http')
+    ? window.location.origin
+    : 'http://127.0.0.1:4190';
   return {
-    apiBaseUrl: params.get('apiBaseUrl') ?? 'http://127.0.0.1:4190',
+    apiBaseUrl: params.get('apiBaseUrl') ?? originFallback,
     sessionToken: params.get('token') ?? '',
   };
 }
