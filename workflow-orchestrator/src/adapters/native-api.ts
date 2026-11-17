@@ -195,6 +195,32 @@ export async function postJsonWithOptionalProxy(
   body: unknown,
   signal?: AbortSignal,
 ): Promise<ProxyJsonPostResponse> {
+  let lastErr: unknown = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return await postJsonWithOptionalProxyOnce(url, headers, body, signal);
+    } catch (err) {
+      lastErr = err;
+      const msg = err instanceof Error ? err.message : String(err);
+      const isTransientTls =
+        !signal?.aborted &&
+        attempt === 0 &&
+        /tls|econnreset|socket|epipe|hang up|timed out/i.test(msg);
+      if (!isTransientTls) {
+        throw err;
+      }
+      await new Promise(resolveDelay => setTimeout(resolveDelay, 300));
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+}
+
+async function postJsonWithOptionalProxyOnce(
+  url: string,
+  headers: Readonly<Record<string, string>>,
+  body: unknown,
+  signal?: AbortSignal,
+): Promise<ProxyJsonPostResponse> {
   const payload = typeof body === 'string' ? body : JSON.stringify(body);
   const targetUrl = new URL(url);
   const proxyUrl = resolveOptionalProxyUrl(targetUrl);
@@ -635,7 +661,7 @@ export async function runNativeApiCapability(
     (!req.model.trim() || req.model === 'default')
       ? 'deepseek-v4.1-flash'
       : req.model;
-  const maxTokens = req.role === 'evaluator' ? 2048 : 4096;
+  const maxTokens = req.role === 'evaluator' ? 1600 : 2400;
 
   const timeoutController = new AbortController();
   const timeoutTimer = setTimeout(
@@ -661,7 +687,7 @@ export async function runNativeApiCapability(
         : [
             'Execution Mode: Isolated Git Worktree Worker.',
             '- Use write_file (and list_dir/read_file only if needed; never inspect .git) to write real code/documentation files on disk instead of only answering in chat.',
-            '- Do NOT inspect every file across multiple turns — call write_file directly by turn 1 or 2 to write clean, concise deliverables inside fileScope.',
+            '- Keep each file clean and compact (< 70 lines) and finish writing within 1-2 turns for rapid execution.',
             req.fileScope.length > 0
               ? `- Confine all writes strictly inside your assigned fileScope: ${req.fileScope.join(', ')}.`
               : '- Write deliverables cleanly into scoped paths inside the worktree.',
