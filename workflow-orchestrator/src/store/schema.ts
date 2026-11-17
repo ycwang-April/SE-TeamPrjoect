@@ -403,7 +403,7 @@ export const BUILTIN_CAPABILITIES: readonly Omit<
     jsonlParser: 'none',
     permissionFlags: {turbo: [], supervised: [], strict: []},
     envAllowlist: [],
-    defaultModel: 'deepseek-chat',
+    defaultModel: 'deepseek-v4.1-flash',
     supportedRoles: ['lead', 'worker', 'evaluator', 'specialist'],
     maxConcurrentSlots: 6,
     enabled: true,
@@ -550,6 +550,32 @@ export const DEFAULT_MODEL_PROVIDERS: readonly Omit<
   ModelProviderConfig,
   'hasApiKey' | 'maskedKeyHint' | 'updatedAt'
 >[] = [
+  {
+    id: 'opencode-go',
+    name: 'OpenCode Go (直连订阅)',
+    protocol: 'openai-compatible',
+    baseUrl: 'https://opencode.ai/inference/go/openai/v1',
+    models: [
+      {
+        id: 'deepseek-v4.1-flash',
+        label: 'DeepSeek V4.1 Flash (默认主力引擎)',
+        tier: 'fast',
+        inputUsdPerMillion: 0.15,
+        cachedInputUsdPerMillion: 0.003,
+        outputUsdPerMillion: 0.6,
+        contextWindowTokens: 1_000_000,
+      },
+      {
+        id: 'deepseek-v4-pro',
+        label: 'DeepSeek V4 Pro (强推理架构模型)',
+        tier: 'strong',
+        inputUsdPerMillion: 0.55,
+        cachedInputUsdPerMillion: 0.14,
+        outputUsdPerMillion: 2.19,
+        contextWindowTokens: 1_000_000,
+      },
+    ],
+  },
   {
     id: 'deepseek',
     name: 'DeepSeek Official',

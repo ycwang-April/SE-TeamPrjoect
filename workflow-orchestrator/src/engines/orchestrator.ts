@@ -840,8 +840,8 @@ export class WorkflowOrchestratorEngine {
         }
 
         const cps = this.store.listCheckpoints(runId);
-        const baseCp = cps[cps.length - 1];
-        const targetSha = baseCp?.gitCommitSha ?? run.baseCommitSha;
+        const latestCp = cps[0];
+        const targetSha = latestCp?.gitCommitSha ?? run.baseCommitSha;
         const rewound = await this.worktrees.rewindToCheckpoint({
           worktreePath: run.worktreePath,
           runCode: run.id,
@@ -1018,6 +1018,7 @@ export class WorkflowOrchestratorEngine {
         .filter(Boolean)
         .join('\n\n');
 
+      const upstreamLines = this.buildUpstreamSummaryLines(runId, node.id);
       const userPrompt = [
         `Workflow Goal: ${goalSpec.goal}`,
         `Node: ${node.code} — ${node.title}`,
@@ -1025,6 +1026,9 @@ export class WorkflowOrchestratorEngine {
         `Requirements: ${node.requirementRefs.join(', ') || 'General'}`,
         `Input Contract: ${node.inputContract}`,
         `Output Contract: ${node.outputContract}`,
+        ...(upstreamLines.length > 0
+          ? ['Upstream Completed Outputs:', ...upstreamLines]
+          : []),
       ].join('\n');
 
       this.store.appendSessionMessage({
@@ -1121,6 +1125,63 @@ export class WorkflowOrchestratorEngine {
         null,
       );
     }
+  }
+
+  private buildUpstreamSummaryLines(runId: string, nodeId: string): string[] {
+    const allNodes = this.store.listGraphNodes(runId);
+    const allEdges = this.store.listGraphEdges(runId);
+    const byId = new Map(allNodes.map(n => [n.id, n]));
+
+    const incomingSources = new Map<string, string[]>();
+    for (const e of allEdges) {
+      if (e.kind === 'loop') {
+        continue;
+      }
+      const list = incomingSources.get(e.targetNodeId) ?? [];
+      list.push(e.sourceNodeId);
+      incomingSources.set(e.targetNodeId, list);
+    }
+
+    const directParentIds = new Set(incomingSources.get(nodeId) ?? []);
+    const visited = new Set<string>([nodeId]);
+    const queue = [...directParentIds];
+    const collected: GraphNode[] = [];
+
+    while (queue.length > 0) {
+      const srcId = queue.shift()!;
+      if (visited.has(srcId)) {
+        continue;
+      }
+      visited.add(srcId);
+      const src = byId.get(srcId);
+      if (!src) {
+        continue;
+      }
+      const isDone = src.status === 'succeeded' || src.status === 'waived';
+      const hasSummary = src.outputSummary.trim().length > 0;
+      if (
+        isDone &&
+        hasSummary &&
+        (directParentIds.has(src.id) ||
+          src.kind === 'task' ||
+          src.kind === 'ghost')
+      ) {
+        collected.push(src);
+      }
+      for (const parentId of incomingSources.get(srcId) ?? []) {
+        if (!visited.has(parentId)) {
+          queue.push(parentId);
+        }
+      }
+    }
+
+    return collected.slice(0, 6).map(src => {
+      const snippet = src.outputSummary
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 240);
+      return `- ${src.code} (${src.title}): ${snippet}`;
+    });
   }
 
   private computeAttemptCost(

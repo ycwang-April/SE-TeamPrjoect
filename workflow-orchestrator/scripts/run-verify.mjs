@@ -22,6 +22,7 @@ for (const file of files) {
   console.log(`\n>>> Running verification gate: ${file}`);
   const res = spawnSync(process.execPath, [tsxCli, join(verifyDir, file)], {
     cwd: root,
+    env: {...process.env, ORCH_OFFLINE_VERIFY: '1'},
     stdio: 'inherit',
   });
   if (res.status !== 0) {

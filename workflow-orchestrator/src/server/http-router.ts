@@ -2,6 +2,7 @@
  * Loopback HTTP REST + Multiplexed SSE Server (`127.0.0.1`).
  */
 
+import {execFileSync} from 'node:child_process';
 import {randomUUID, timingSafeEqual} from 'node:crypto';
 import {
   createServer,
@@ -25,6 +26,7 @@ import type {
   BootstrapSnapshot,
   ExportWorkflowPlanResponse,
   OrchestratorSseEvent,
+  RunDetailSnapshot,
   UpdateDraftGraphRequest,
   UpdateGoalSpecRequest,
 } from '../shared/api.ts';
@@ -62,6 +64,47 @@ function constantTimeMatch(a: string, b: string): boolean {
   return bufA.length === bufB.length && timingSafeEqual(bufA, bufB);
 }
 
+let cachedWinProxy: {checkedAt: number; configured: boolean} | null = null;
+
+function isProxyConfigured(): boolean {
+  if (
+    process.env['HTTPS_PROXY'] ||
+    process.env['https_proxy'] ||
+    process.env['HTTP_PROXY'] ||
+    process.env['http_proxy']
+  ) {
+    return true;
+  }
+  if (
+    process.platform !== 'win32' ||
+    process.env['ORCH_OFFLINE_VERIFY'] === '1'
+  ) {
+    return false;
+  }
+  const now = Date.now();
+  if (cachedWinProxy && now - cachedWinProxy.checkedAt < 30_000) {
+    return cachedWinProxy.configured;
+  }
+  let configured = false;
+  try {
+    const out = execFileSync(
+      'reg.exe',
+      [
+        'query',
+        'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings',
+      ],
+      {encoding: 'utf8', timeout: 800, windowsHide: true},
+    );
+    configured =
+      /ProxyEnable\s+REG_DWORD\s+0x1/i.test(out) &&
+      /ProxyServer\s+REG_SZ\s+\S+/i.test(out);
+  } catch {
+    configured = false;
+  }
+  cachedWinProxy = {checkedAt: now, configured};
+  return configured;
+}
+
 export class OrchestratorHttpServer {
   private readonly store: OrchestratorStore;
   private readonly vault: HostSecretVault;
@@ -80,6 +123,7 @@ export class OrchestratorHttpServer {
   private sseSeq = 0;
   private readonly sseClients = new Set<ServerResponse>();
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private gitReadyCache: boolean | null = null;
 
   constructor(input: {
     readonly store: OrchestratorStore;
@@ -182,7 +226,24 @@ export class OrchestratorHttpServer {
     }
   }
 
+  private isGitReady(): boolean {
+    if (this.gitReadyCache === null) {
+      this.gitReadyCache = Boolean(this.runner.resolveExecutable('git'));
+    }
+    return this.gitReadyCache;
+  }
+
+  private withRunLiveLogs(detail: RunDetailSnapshot): RunDetailSnapshot {
+    return {
+      ...detail,
+      liveLogs: this.store.listRunLiveLogs(detail.run.id),
+    };
+  }
+
   getBootstrapSnapshot(): BootstrapSnapshot {
+    const nativeCap = this.store
+      .listCapabilities()
+      .find(c => c.id === 'native-api');
     return {
       daemonVersion: '0.2.0',
       startedAt: this.startedAt,
@@ -204,6 +265,12 @@ export class OrchestratorHttpServer {
       constitution: this.store.getConstitutionRule(),
       rehydrationCapsules: this.consolidator.computeAllCapsules(this.store),
       designSpecPresets: BUILTIN_DESIGN_SPEC_PRESETS,
+      infraStatus: {
+        opencodeGoConfigured: this.vault.getKeyStatus('opencode-go').hasApiKey,
+        defaultModel: nativeCap?.defaultModel || 'deepseek-v4.1-flash',
+        proxyConfigured: isProxyConfigured(),
+        gitReady: this.isGitReady(),
+      },
     };
   }
 
@@ -539,23 +606,24 @@ export class OrchestratorHttpServer {
             ? reqEnum(rec, 'permissionTier', PERMISSION_TIERS)
             : undefined,
         });
-        this.writeJson(res, 201, detail);
+        this.writeJson(res, 201, this.withRunLiveLogs(detail));
         return;
       }
 
       const runDetailMatch = /^\/api\/runs\/([^/]+)$/.exec(path);
       if (method === 'GET' && runDetailMatch) {
-        this.writeJson(
-          res,
-          200,
-          this.orchestrator.getRunDetail(runDetailMatch[1]!),
-        );
+        const detail = this.orchestrator.getRunDetail(runDetailMatch[1]!);
+        this.writeJson(res, 200, this.withRunLiveLogs(detail));
         return;
       }
 
       const runPauseMatch = /^\/api\/runs\/([^/]+)\/pause$/.exec(path);
       if (method === 'POST' && runPauseMatch) {
-        this.writeJson(res, 200, this.orchestrator.pauseRun(runPauseMatch[1]!));
+        this.writeJson(
+          res,
+          200,
+          this.withRunLiveLogs(this.orchestrator.pauseRun(runPauseMatch[1]!)),
+        );
         return;
       }
 
@@ -564,7 +632,7 @@ export class OrchestratorHttpServer {
         this.writeJson(
           res,
           200,
-          this.orchestrator.resumeRun(runResumeMatch[1]!),
+          this.withRunLiveLogs(this.orchestrator.resumeRun(runResumeMatch[1]!)),
         );
         return;
       }
@@ -574,7 +642,7 @@ export class OrchestratorHttpServer {
         this.writeJson(
           res,
           200,
-          this.orchestrator.cancelRun(runCancelMatch[1]!),
+          this.withRunLiveLogs(this.orchestrator.cancelRun(runCancelMatch[1]!)),
         );
         return;
       }
@@ -585,9 +653,11 @@ export class OrchestratorHttpServer {
         this.writeJson(
           res,
           200,
-          this.orchestrator.retryNode(
-            runRetryMatch[1]!,
-            reqString(rec, 'nodeId', 80),
+          this.withRunLiveLogs(
+            this.orchestrator.retryNode(
+              runRetryMatch[1]!,
+              reqString(rec, 'nodeId', 80),
+            ),
           ),
         );
         return;
@@ -599,22 +669,24 @@ export class OrchestratorHttpServer {
         this.writeJson(
           res,
           200,
-          this.orchestrator.proposeGhostNode(runGhostMatch[1]!, {
-            title: reqString(rec, 'title', 160),
-            description: optString(rec, 'description', '', 2048),
-            executorKind: rec['executorKind']
-              ? reqEnum(rec, 'executorKind', [
-                  'agent',
-                  'tool',
-                  'human',
-                  'control',
-                ] as const)
-              : 'agent',
-            capabilityId: optString(rec, 'capabilityId', 'native-api', 80),
-            gateCommand: optString(rec, 'gateCommand', '', 512) || null,
-            insertBeforeNodeId:
-              optString(rec, 'insertBeforeNodeId', '', 80) || null,
-          }),
+          this.withRunLiveLogs(
+            this.orchestrator.proposeGhostNode(runGhostMatch[1]!, {
+              title: reqString(rec, 'title', 160),
+              description: optString(rec, 'description', '', 2048),
+              executorKind: rec['executorKind']
+                ? reqEnum(rec, 'executorKind', [
+                    'agent',
+                    'tool',
+                    'human',
+                    'control',
+                  ] as const)
+                : 'agent',
+              capabilityId: optString(rec, 'capabilityId', 'native-api', 80),
+              gateCommand: optString(rec, 'gateCommand', '', 512) || null,
+              insertBeforeNodeId:
+                optString(rec, 'insertBeforeNodeId', '', 80) || null,
+            }),
+          ),
         );
         return;
       }
@@ -625,9 +697,11 @@ export class OrchestratorHttpServer {
         this.writeJson(
           res,
           200,
-          await this.orchestrator.manualRestoreCheckpoint(
-            runRestoreMatch[1]!,
-            reqString(rec, 'checkpointId', 80),
+          this.withRunLiveLogs(
+            await this.orchestrator.manualRestoreCheckpoint(
+              runRestoreMatch[1]!,
+              reqString(rec, 'checkpointId', 80),
+            ),
           ),
         );
         return;
@@ -661,7 +735,7 @@ export class OrchestratorHttpServer {
               : 'approve',
           },
         );
-        this.writeJson(res, 200, runDetail);
+        this.writeJson(res, 200, this.withRunLiveLogs(runDetail));
         return;
       }
 

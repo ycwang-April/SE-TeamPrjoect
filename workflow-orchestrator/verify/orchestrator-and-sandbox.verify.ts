@@ -196,7 +196,13 @@ async function run(): Promise<void> {
       finished2.rehydrationCapsule?.workflowId === reworkWf.workflow.id,
     );
 
-    // 4. Constitution blocked-command enforcement + orphan worktree cleanup
+    // 4. Windows shell builtin gate + Constitution blocked-command enforcement + orphan worktree cleanup
+    const echoGate = await runner.runCommandString(
+      'echo Verification gate passed',
+      repoDir,
+    );
+    assert.equal(echoGate.exitCode, 0);
+    assert.ok(echoGate.stdout.includes('Verification gate passed'));
     runner.setBlockedCommandPatterns(['danger_custom_block']);
     await assert.rejects(
       () => runner.runCommandString('echo danger_custom_block', repoDir),

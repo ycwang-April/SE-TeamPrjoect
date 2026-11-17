@@ -106,21 +106,17 @@ export class GitWorktreeManager implements IGitWorktreeManager {
   ): Promise<string> {
     mkdirSync(repoPath, {recursive: true});
 
-    const headCheck = await this.runner.run({
-      executable: 'git',
-      args: ['rev-parse', '--verify', 'HEAD'],
-      cwd: repoPath,
-    });
-    if (headCheck.exitCode === 0 && headCheck.stdout.trim().length > 0) {
-      return headCheck.stdout.trim();
-    }
-
-    const gitDirCheck = await this.runner.run({
-      executable: 'git',
-      args: ['rev-parse', '--is-inside-work-tree'],
-      cwd: repoPath,
-    });
-    if (gitDirCheck.exitCode !== 0) {
+    const hasOwnGit = existsSync(join(repoPath, '.git'));
+    if (hasOwnGit) {
+      const headCheck = await this.runner.run({
+        executable: 'git',
+        args: ['rev-parse', '--verify', 'HEAD'],
+        cwd: repoPath,
+      });
+      if (headCheck.exitCode === 0 && headCheck.stdout.trim().length > 0) {
+        return headCheck.stdout.trim();
+      }
+    } else {
       const initRes = await this.runner.run({
         executable: 'git',
         args: ['init', '-b', defaultBranch],

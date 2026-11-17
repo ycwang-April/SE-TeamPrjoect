@@ -1,4 +1,5 @@
 import {type ReactElement, useState} from 'react';
+import type {InfraStatusSnapshot} from '../../../src/shared/api';
 import type {
   CapabilityAdapterManifest,
   CapabilityHealthProfile,
@@ -20,6 +21,7 @@ interface CapabilitiesViewProps {
   readonly skills: readonly SkillEntry[];
   readonly mcpServers: readonly McpServerEntry[];
   readonly domainTerms: readonly DomainTermEntry[];
+  readonly infraStatus?: InfraStatusSnapshot;
   readonly onRefresh: () => Promise<void>;
 }
 
@@ -32,6 +34,7 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
     skills,
     mcpServers,
     domainTerms,
+    infraStatus,
     onRefresh,
   } = props;
 
@@ -72,6 +75,14 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
   const [dddDef, setDddDef] = useState('');
 
   const healthById = new Map(capabilityHealth.map(h => [h.capabilityId, h]));
+  const opencodeProvider = modelProviders.find(p => p.id === 'opencode-go');
+  const opencodeConnected =
+    infraStatus?.opencodeGoConfigured ?? Boolean(opencodeProvider?.hasApiKey);
+  const defaultModel = infraStatus?.defaultModel || 'deepseek-v4.1-flash';
+  const proxyConfigured = infraStatus?.proxyConfigured ?? false;
+  const gitCap = capabilities.find(c => c.id === 'git-control');
+  const gitReady =
+    infraStatus?.gitReady ?? (gitCap ? gitCap.probeOk !== false : true);
 
   const handleProbe = async (id: string): Promise<void> => {
     setBusy(true);
@@ -320,17 +331,13 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
             style={{margin: 0, display: 'flex', alignItems: 'center', gap: 8}}
           >
             <CpuIcon size={18} />{' '}
-            {tr(
-              lang,
-              '执行能力池、SkillsBank、MCP 与 DDD 治理',
-              'Capabilities, SkillsBank, MCP & DDD Pool',
-            )}
+            {tr(lang, '基础设施与模型池', 'Infrastructure & Model Pool')}
           </h2>
           <div style={{color: 'var(--text-muted)', marginTop: 3}}>
             {tr(
               lang,
-              '管理 Agent 灵魂指令、睡眠进化技能库、MCP 工具协议与领域统一语言。',
-              'Manage agent sovereign souls, SkillsBank dreaming, MCP pool, and DDD ubiquitous language.',
+              '管理智能体灵魂指令、模型供应凭证、技能库睡眠整合、工具协议与领域统一语言。',
+              'Manage agent sovereign souls, model providers, SkillsBank dreaming, MCP pool, and DDD ubiquitous language.',
             )}
           </div>
         </div>
@@ -350,8 +357,75 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
             onClick={() => void handleRunDoctor()}
           >
             <ShieldCheckIcon size={14} />{' '}
-            {tr(lang, '环境体检 (Env Doctor)', 'Run Env Doctor')}
+            {tr(lang, '环境体检', 'Run Env Doctor')}
           </button>
+        </div>
+      </div>
+
+      {/* OpenCode Go & Sandbox Infrastructure Readiness Banner */}
+      <div
+        className="card"
+        style={{
+          marginBottom: 14,
+          background: opencodeConnected ? '#f0fdf4' : '#f8fafc',
+          borderColor: opencodeConnected ? '#86efac' : 'var(--border-card)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 12,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{display: 'flex', alignItems: 'center', gap: 8}}>
+            <span
+              className={`tag ${opencodeConnected ? 'tag-green' : 'tag-amber'}`}
+            >
+              {opencodeConnected
+                ? tr(lang, 'OpenCode Go 已连通', 'OpenCode Go Ready')
+                : tr(
+                    lang,
+                    'OpenCode Go 未配置 · 离线降级',
+                    'OpenCode Go Offline',
+                  )}
+            </span>
+            <span className="mono" style={{fontSize: 12, fontWeight: 700}}>
+              {defaultModel}
+            </span>
+            {opencodeProvider?.hasApiKey && opencodeProvider.maskedKeyHint && (
+              <span className="mono tag">{opencodeProvider.maskedKeyHint}</span>
+            )}
+          </div>
+          <span className={`tag ${proxyConfigured ? 'tag-indigo' : ''}`}>
+            {proxyConfigured
+              ? tr(lang, '代理通道已就绪', 'Proxy Active')
+              : tr(lang, '直连通道', 'Direct Network')}
+          </span>
+          <span className={`tag ${gitReady ? 'tag-teal' : 'tag-red'}`}>
+            {gitReady
+              ? tr(lang, 'Git 隔离沙箱引擎就绪', 'Git Worktree Sandbox Ready')
+              : tr(lang, 'Git 沙箱待体检', 'Git Probe Needed')}
+          </span>
+        </div>
+        <div style={{fontSize: 11.5, color: 'var(--text-secondary)'}}>
+          {opencodeConnected
+            ? tr(
+                lang,
+                '默认优先调度 OpenCode Go 订阅引擎，异常或断网时自动降级本地执行。',
+                'OpenCode Go subscription active; offline deterministic synthesis acts as fallback.',
+              )
+            : tr(
+                lang,
+                '在右侧模型密钥池填入凭证或登录后即可启用实时大模型推理。',
+                'Configure API key below to enable live LLM inference.',
+              )}
         </div>
       </div>
 
@@ -361,7 +435,7 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
           className={`underline-tab ${capTab === 'agents' ? 'active' : ''}`}
           onClick={() => setCapTab('agents')}
         >
-          {tr(lang, '1. 执行能力与密钥池', '1. Capabilities & Vault')} (
+          {tr(lang, '1. 能力与模型接入', '1. Capabilities & Vault')} (
           {capabilities.length})
         </button>
         <button
@@ -369,7 +443,7 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
           className={`underline-tab ${capTab === 'skills_dream' ? 'active' : ''}`}
           onClick={() => setCapTab('skills_dream')}
         >
-          {tr(lang, '2. SkillsBank 技能库', '2. SkillsBank & Dreaming')} (
+          {tr(lang, '2. 技能库与睡眠整合', '2. SkillsBank & Dreaming')} (
           {skills.length})
         </button>
         <button
@@ -377,7 +451,7 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
           className={`underline-tab ${capTab === 'mcp_ddd' ? 'active' : ''}`}
           onClick={() => setCapTab('mcp_ddd')}
         >
-          {tr(lang, '3. MCP 池与 DDD 术语表', '3. MCP Pool & DDD Glossary')} (
+          {tr(lang, '3. 工具协议与领域术语', '3. MCP Pool & DDD Glossary')} (
           {mcpServers.length} / {domainTerms.length})
         </button>
       </div>
@@ -424,7 +498,8 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
             {tr(lang, '环境体检报告', 'Environment Doctor Report')}
           </strong>{' '}
           · Node {doctor.nodeVersion} · Git:{' '}
-          <span className="mono">{doctor.gitVersion}</span> · Pruned Worktrees:{' '}
+          <span className="mono">{doctor.gitVersion}</span> ·{' '}
+          {tr(lang, '已清理工作树', 'Pruned Worktrees')}:{' '}
           <span className="mono">{doctor.prunedWorktrees?.length ?? 0}</span>
         </div>
       )}
@@ -490,7 +565,12 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
                                   : 'tag-red'
                             }`}
                           >
-                            circuit: {circuit}
+                            {tr(lang, '熔断', 'circuit')}:{' '}
+                            {circuit === 'closed'
+                              ? tr(lang, '闭合', 'closed')
+                              : circuit === 'half_open'
+                                ? tr(lang, '半开', 'half_open')
+                                : tr(lang, '熔断', 'open')}
                           </span>
                         </div>
                         <div style={{fontWeight: 600, marginTop: 3}}>
@@ -499,14 +579,19 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
                         <div
                           style={{fontSize: 11.5, color: 'var(--text-muted)'}}
                         >
-                          {cap.specialty} · Probe: {cap.probeMessage}
+                          {cap.specialty} · {tr(lang, '探测', 'Probe')}:{' '}
+                          {cap.probeMessage}
                         </div>
                         {editingSoulId === cap.id ? (
                           <div style={{marginTop: 6, display: 'flex', gap: 6}}>
                             <input
                               value={soulDraft}
                               onChange={e => setSoulDraft(e.target.value)}
-                              placeholder="Sovereign Soul directive..."
+                              placeholder={tr(
+                                lang,
+                                '输入灵魂指令...',
+                                'Sovereign Soul directive...',
+                              )}
                             />
                             <button
                               type="button"
@@ -532,7 +617,7 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
                               marginTop: 4,
                             }}
                           >
-                            Soul: {cap.sovereignSoul}
+                            {tr(lang, '灵魂指令', 'Soul')}: {cap.sovereignSoul}
                           </div>
                         )}
                       </div>
@@ -598,24 +683,32 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
                 <input
                   value={newId}
                   onChange={e => setNewId(e.target.value)}
-                  placeholder="tool:pytest"
+                  placeholder={tr(lang, '如 tool:pytest', 'tool:pytest')}
                 />
                 <input
                   value={newLabel}
                   onChange={e => setNewLabel(e.target.value)}
-                  placeholder="Pytest Runner"
+                  placeholder={tr(lang, '能力名称', 'Pytest Runner')}
                 />
                 <select
                   value={newExecKind}
                   onChange={e => setNewExecKind(e.target.value as ExecutorKind)}
                 >
-                  <option value="tool">tool</option>
-                  <option value="agent">agent</option>
+                  <option value="tool">
+                    {formatExecutorKind(lang, 'tool')}
+                  </option>
+                  <option value="agent">
+                    {formatExecutorKind(lang, 'agent')}
+                  </option>
                 </select>
                 <input
                   value={newCommand}
                   onChange={e => setNewCommand(e.target.value)}
-                  placeholder="command / bin"
+                  placeholder={tr(
+                    lang,
+                    '执行命令或可执行文件',
+                    'command / bin',
+                  )}
                 />
                 <button
                   type="button"
@@ -634,7 +727,7 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
             <strong style={{fontSize: 13.5}}>
               {tr(
                 lang,
-                '模型供应与密钥保险库 (Secrets Vault)',
+                '模型供应与密钥保险库',
                 'Model Providers & Secret Vault',
               )}
             </strong>
@@ -698,8 +791,8 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
                     }
                     placeholder={tr(
                       lang,
-                      '输入 API Key (留空清除)...',
-                      'Enter API Key (empty clears)...',
+                      '输入 API 密钥，留空则清除...',
+                      'Enter API Key, leave empty to clear...',
                     )}
                   />
                   <button
@@ -725,7 +818,7 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
             <strong style={{fontSize: 13.5}}>
               {tr(
                 lang,
-                '可复用工程技能库 (SkillsBank · Ebbinghaus Stability)',
+                '可复用工程技能库与艾宾浩斯记忆稳定度',
                 'Reusable Engineering SkillsBank',
               )}
             </strong>
@@ -759,7 +852,9 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
                       <strong>{sk.title}</strong>
                     </div>
                     <span className="mono tag tag-green">
-                      used {sk.timesUsed} · {sk.stabilityHours.toFixed(1)}h
+                      {tr(lang, '调用', 'used')} {sk.timesUsed}{' '}
+                      {tr(lang, '次', '')} · {tr(lang, '稳定度', 'stability')}{' '}
+                      {sk.stabilityHours.toFixed(1)}h
                     </span>
                   </div>
                   <div
@@ -778,7 +873,7 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
 
           <div className="card" style={{height: 'fit-content'}}>
             <strong style={{fontSize: 13.5}}>
-              {tr(lang, '新增 / 更新技能条目', 'Upsert Skill Entry')}
+              {tr(lang, '新增或更新技能条目', 'Upsert Skill Entry')}
             </strong>
             <div
               style={{
@@ -792,7 +887,11 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
                 className="mono"
                 value={skillSlug}
                 onChange={e => setSkillSlug(e.target.value)}
-                placeholder="slug (e.g. strict-ddd-contract)"
+                placeholder={tr(
+                  lang,
+                  '技能标识，如 strict-ddd-contract',
+                  'slug (e.g. strict-ddd-contract)',
+                )}
               />
               <input
                 value={skillTitle}
@@ -805,11 +904,19 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
                   setSkillCat(e.target.value as SkillEntry['category'])
                 }
               >
-                <option value="pm_plan">pm_plan</option>
-                <option value="backend">backend</option>
-                <option value="frontend">frontend</option>
-                <option value="qa">qa</option>
-                <option value="governance">governance</option>
+                <option value="pm_plan">
+                  {tr(lang, '规划拆解', 'pm_plan')}
+                </option>
+                <option value="backend">
+                  {tr(lang, '后端工程', 'backend')}
+                </option>
+                <option value="frontend">
+                  {tr(lang, '前端界面', 'frontend')}
+                </option>
+                <option value="qa">{tr(lang, '质量审校', 'qa')}</option>
+                <option value="governance">
+                  {tr(lang, '架构治理', 'governance')}
+                </option>
               </select>
               <textarea
                 rows={4}
@@ -827,7 +934,7 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
                 disabled={busy || !skillSlug.trim() || !skillTitle.trim()}
                 onClick={() => void handleAddSkill()}
               >
-                {tr(lang, '写入 SkillsBank', 'Save to SkillsBank')}
+                {tr(lang, '写入技能库', 'Save to SkillsBank')}
               </button>
             </div>
           </div>
@@ -838,11 +945,7 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
         <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16}}>
           <div className="card">
             <strong style={{fontSize: 13.5}}>
-              {tr(
-                lang,
-                'MCP 工具服务器池 (Model Context Protocol)',
-                'MCP Server Pool',
-              )}
+              {tr(lang, 'MCP 工具服务器池', 'MCP Server Pool')}
             </strong>
             <div
               style={{
@@ -879,7 +982,12 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
                               : ''
                         }`}
                       >
-                        {m.status} · {m.toolsCount} tools
+                        {m.status === 'ready'
+                          ? tr(lang, '就绪', 'ready')
+                          : m.status === 'offline'
+                            ? tr(lang, '离线', 'offline')
+                            : tr(lang, '未探测', 'untested')}{' '}
+                        · {m.toolsCount} {tr(lang, '个工具', 'tools')}
                       </span>
                     </div>
                     <div
@@ -920,7 +1028,7 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
               <input
                 value={mcpName}
                 onChange={e => setMcpName(e.target.value)}
-                placeholder="MCP name"
+                placeholder={tr(lang, 'MCP 服务器名称', 'MCP name')}
               />
               <select
                 value={mcpTransport}
@@ -960,7 +1068,7 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
             <strong style={{fontSize: 13.5}}>
               {tr(
                 lang,
-                'DDD 统一语言与禁用别名守卫',
+                '领域统一语言与禁用别名守卫',
                 'DDD Ubiquitous Language & Alias Guard',
               )}
             </strong>
@@ -990,7 +1098,9 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
                     >
                       <span className="tag tag-indigo">{t.boundedContext}</span>
                       <strong className="mono">{t.canonicalTerm}</strong>
-                      {t.localLabel && <span>({t.localLabel})</span>}
+                      {t.localLabel && (
+                        <span className="tag">{t.localLabel}</span>
+                      )}
                     </div>
                     <div
                       style={{
@@ -1005,7 +1115,8 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
                       <div
                         style={{fontSize: 11, color: '#b91c1c', marginTop: 2}}
                       >
-                        Forbidden aliases: {t.forbiddenAliases.join(', ')}
+                        {tr(lang, '禁用别名', 'Forbidden aliases')}:{' '}
+                        {t.forbiddenAliases.join(', ')}
                       </div>
                     )}
                   </div>
@@ -1031,19 +1142,23 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
               <input
                 value={dddContext}
                 onChange={e => setDddContext(e.target.value)}
-                placeholder="Bounded Context"
+                placeholder={tr(lang, '限界上下文', 'Bounded Context')}
               />
               <input
                 className="mono"
                 value={dddTerm}
                 onChange={e => setDddTerm(e.target.value)}
-                placeholder="CanonicalTerm"
+                placeholder={tr(lang, '规范术语名称', 'CanonicalTerm')}
               />
               <input
                 style={{gridColumn: '1 / -1'}}
                 value={dddAliases}
                 onChange={e => setDddAliases(e.target.value)}
-                placeholder="Forbidden aliases (comma-separated, e.g. step_box, task_unit)"
+                placeholder={tr(
+                  lang,
+                  '禁用别名，逗号分隔，如 step_box, task_unit',
+                  'Forbidden aliases (comma-separated, e.g. step_box, task_unit)',
+                )}
               />
               <input
                 style={{gridColumn: '1 / -1'}}
@@ -1058,7 +1173,7 @@ export function CapabilitiesView(props: CapabilitiesViewProps): ReactElement {
                 disabled={busy || !dddTerm.trim()}
                 onClick={() => void handleAddDddTerm()}
               >
-                {tr(lang, '添加 DDD 术语守卫', 'Add DDD Term Guard')}
+                {tr(lang, '添加领域术语守卫', 'Add DDD Term Guard')}
               </button>
             </div>
           </div>

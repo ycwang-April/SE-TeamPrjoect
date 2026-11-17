@@ -65,6 +65,23 @@ export interface EvidenceSearchHit {
   readonly createdAt: string;
 }
 
+export interface RunLiveLogEntry {
+  readonly id: string;
+  readonly nodeCode: string;
+  readonly capabilityId: string;
+  readonly role: 'system' | 'user' | 'assistant' | 'tool' | 'audit';
+  readonly toolName: string | null;
+  readonly content: string;
+  readonly createdAt: string;
+}
+
+export interface InfraStatusSnapshot {
+  readonly opencodeGoConfigured: boolean;
+  readonly defaultModel: string;
+  readonly proxyConfigured: boolean;
+  readonly gitReady: boolean;
+}
+
 export interface BootstrapSnapshot {
   readonly daemonVersion: string;
   readonly startedAt: string;
@@ -84,6 +101,7 @@ export interface BootstrapSnapshot {
   readonly constitution: ConstitutionRule;
   readonly rehydrationCapsules: readonly RehydrationCapsule[];
   readonly designSpecPresets: readonly BuiltinDesignSpecPreset[];
+  readonly infraStatus?: InfraStatusSnapshot;
 }
 
 export interface WorkflowDetailSnapshot {
@@ -109,6 +127,7 @@ export interface RunDetailSnapshot {
   readonly sessions: readonly TranscriptSession[];
   readonly recentAudit: readonly AuditLedgerEntry[];
   readonly rehydrationCapsule?: RehydrationCapsule | null;
+  readonly liveLogs?: readonly RunLiveLogEntry[];
 }
 
 export interface ImportRequirementsRequest {

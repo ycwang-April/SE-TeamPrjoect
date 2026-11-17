@@ -16,6 +16,43 @@ import type {
 
 const SENSITIVE_ENV_PATTERN = /KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH/i;
 const DEFAULT_TIMEOUT_MS = 120_000;
+const WIN_CMD_BUILTINS = new Set([
+  'echo',
+  'dir',
+  'type',
+  'ver',
+  'set',
+  'cd',
+  'copy',
+  'cls',
+  'date',
+  'time',
+]);
+
+function hasUnquotedWinShellSyntax(segment: string): boolean {
+  let quote: '"' | "'" | null = null;
+  for (let i = 0; i < segment.length; i += 1) {
+    const ch = segment[i]!;
+    if (quote) {
+      if (ch === '\\' && quote === '"' && i + 1 < segment.length) {
+        i += 1;
+        continue;
+      }
+      if (ch === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    if (ch === '>' || ch === '<' || ch === '|' || ch === '&' || ch === '^') {
+      return true;
+    }
+  }
+  return false;
+}
 
 function isExecutableFile(filePath: string): boolean {
   try {
@@ -450,13 +487,38 @@ export class SandboxProcessRunner implements ISandboxProcessRunner {
       if (argv.length === 0) {
         continue;
       }
-      const res = await this.run({
-        executable: argv[0]!,
-        args: argv.slice(1),
-        cwd,
-        timeoutMs,
-        blockedCommandPatterns: blockedPatterns,
-      });
+      const firstToken = argv[0]!.toLowerCase();
+      const useWinCmdShell =
+        process.platform === 'win32' &&
+        (WIN_CMD_BUILTINS.has(firstToken) ||
+          (!this.resolveExecutable(argv[0]!) &&
+            hasUnquotedWinShellSyntax(seg)));
+
+      if (useWinCmdShell && /[\r\n\0]/.test(seg)) {
+        throw new OrchestratorError(
+          'POLICY_DENIED',
+          'POLICY_BLOCKED: Control characters rejected in Windows shell command',
+          403,
+        );
+      }
+
+      const res = await this.run(
+        useWinCmdShell
+          ? {
+              executable: process.env['ComSpec'] || 'cmd.exe',
+              args: ['/d', '/s', '/c', seg],
+              cwd,
+              timeoutMs,
+              blockedCommandPatterns: blockedPatterns,
+            }
+          : {
+              executable: argv[0]!,
+              args: argv.slice(1),
+              cwd,
+              timeoutMs,
+              blockedCommandPatterns: blockedPatterns,
+            },
+      );
       if (res.stdout) {
         combinedStdout.push(res.stdout);
       }

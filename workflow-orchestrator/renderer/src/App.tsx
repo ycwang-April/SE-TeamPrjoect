@@ -9,7 +9,7 @@ import {
   HistoryIcon,
   SearchIcon,
 } from './components/Icons';
-import {tr, type UiLang} from './i18n';
+import {formatRunStatus, tr, type UiLang} from './i18n';
 import {CapabilitiesView} from './views/CapabilitiesView';
 import {RunsAuditView} from './views/RunsAuditView';
 import {WorkflowsView} from './views/WorkflowsView';
@@ -82,7 +82,7 @@ export function App(): ReactElement {
 
   const quickCommands = [
     {
-      label: tr(lang, '切换到 · 需求与编排设计台', 'Go to · Design Studio'),
+      label: tr(lang, '切换到 · 编排设计台', 'Go to · Design Studio'),
       run: () => setSection('design'),
     },
     {
@@ -90,26 +90,22 @@ export function App(): ReactElement {
       run: () => setSection('live'),
     },
     {
-      label: tr(lang, '切换到 · 执行能力与模型池', 'Go to · Capabilities Pool'),
+      label: tr(lang, '切换到 · 基础设施与模型池', 'Go to · Infra & Models'),
       run: () => setSection('capabilities'),
     },
     {
-      label: tr(
-        lang,
-        '切换到 · 版本快照与审计账本',
-        'Go to · Versions & Audit',
-      ),
+      label: tr(lang, '切换到 · 版本与日志审计', 'Go to · Versions & Audit'),
       run: () => setSection('audit'),
     },
     ...(snapshot?.workflows.map(wf => ({
-      label: `Workflow · ${wf.code}: ${wf.title}`,
+      label: `${tr(lang, '工作流', 'Workflow')} · ${wf.code}: ${wf.title}`,
       run: () => {
         setSelectedWorkflowId(wf.id);
         setSection('design');
       },
     })) ?? []),
     ...(snapshot?.runs.map(r => ({
-      label: `Run · ${r.title} (${r.status})`,
+      label: `${tr(lang, '运行', 'Run')} · ${r.title} · ${formatRunStatus(lang, r.status)}`,
       run: () => {
         setSelectedRunId(r.id);
         setSection('live');
@@ -155,7 +151,8 @@ export function App(): ReactElement {
               className={`nav-pill ${section === 'capabilities' ? 'active' : ''}`}
               onClick={() => setSection('capabilities')}
             >
-              <CpuIcon size={14} /> {tr(lang, '能力与模型池', 'Capabilities')}
+              <CpuIcon size={14} />{' '}
+              {tr(lang, '基础设施与模型池', 'Infra & Models')}
             </button>
             <button
               type="button"
@@ -163,7 +160,7 @@ export function App(): ReactElement {
               onClick={() => setSection('audit')}
             >
               <HistoryIcon size={14} />{' '}
-              {tr(lang, '版本与审计', 'Versions & Audit')}
+              {tr(lang, '版本与日志审计', 'Versions & Audit')}
             </button>
           </nav>
         </div>
@@ -171,26 +168,30 @@ export function App(): ReactElement {
         <div className="topbar-right">
           {snapshot && (
             <span className="mono tag">
-              Slots {snapshot.slots.activeWorkerSlots}/
+              {tr(lang, '槽位', 'Slots')} {snapshot.slots.activeWorkerSlots}/
               {snapshot.slots.maxWorkerSlots}
             </span>
           )}
           <span className={`tag ${sseConnected ? 'tag-green' : ''}`}>
-            ● {sseConnected ? 'SSE Live' : 'Polling'}
+            ●{' '}
+            {sseConnected
+              ? tr(lang, '实时连接', 'SSE Live')
+              : tr(lang, '轮询', 'Polling')}
           </span>
           <button
             type="button"
             className="btn btn-sm"
+            title="Ctrl+K"
             onClick={() => setShowPalette(true)}
           >
-            <SearchIcon size={12} /> Ctrl+K
+            <SearchIcon size={12} /> {tr(lang, '检索', 'Search')}
           </button>
           <button
             type="button"
             className="btn btn-sm"
             onClick={() => setLang(l => (l === 'ZH' ? 'EN' : 'ZH'))}
           >
-            <GlobeIcon size={12} /> {lang}
+            <GlobeIcon size={12} /> {lang === 'ZH' ? '中文/EN' : 'EN/中文'}
           </button>
         </div>
       </header>
@@ -243,6 +244,7 @@ export function App(): ReactElement {
             onSelectRun={setSelectedRunId}
             onRefreshBootstrap={loadBootstrap}
             refreshTick={refreshTick}
+            infraStatus={snapshot.infraStatus}
           />
         ) : section === 'capabilities' ? (
           <CapabilitiesView
@@ -253,6 +255,7 @@ export function App(): ReactElement {
             skills={snapshot.skills}
             mcpServers={snapshot.mcpServers}
             domainTerms={snapshot.domainTerms}
+            infraStatus={snapshot.infraStatus}
             onRefresh={loadBootstrap}
           />
         ) : (

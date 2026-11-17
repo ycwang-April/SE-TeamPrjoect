@@ -74,6 +74,25 @@ function run(): void {
       'Every non-container node must carry a Planning Rationale',
     );
     assert.equal(imported.validation.valid, true);
+    for (const ckptCode of ['P1.CKPT', 'P2.CKPT', 'P3.CKPT']) {
+      assert.ok(
+        imported.nodes.some(
+          n => n.code === ckptCode && n.kind === 'checkpoint',
+        ),
+        `Expected inter-phase checkpoint node ${ckptCode}`,
+      );
+    }
+    const opencodeGo = store
+      .listModelProviders(() => ({hasApiKey: false, maskedKeyHint: ''}))
+      .find(p => p.id === 'opencode-go');
+    assert.ok(
+      opencodeGo?.models.some(m => m.id === 'deepseek-v4.1-flash'),
+      'Expected opencode-go provider with deepseek-v4.1-flash model',
+    );
+    assert.equal(
+      store.listCapabilities().find(c => c.id === 'native-api')?.defaultModel,
+      'deepseek-v4.1-flash',
+    );
 
     // 2. Dual-mode edit + ChangeImpactReport + Fail-closed capability blocking
     const taskNode = imported.nodes.find(n => n.kind === 'task');

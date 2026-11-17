@@ -14,7 +14,15 @@ import type {
   WorkspaceEntry,
 } from '../../../src/shared/types';
 import {orchApi} from '../api/client';
-import {formatWorkflowStatus, tr, type UiLang} from '../i18n';
+import {
+  formatExecutorKind,
+  formatNodeKind,
+  formatNodeStatus,
+  formatTemplatePreset,
+  formatWorkflowStatus,
+  tr,
+  type UiLang,
+} from '../i18n';
 import {
   AlertIcon,
   LockIcon,
@@ -451,13 +459,17 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                 {formatWorkflowStatus(lang, detail.workflow.status)}
               </span>
               <span className="tag">
-                {detail.goalSpec.requirements.length} FR ·{' '}
-                {detail.goalSpec.acceptanceCriteria.length} AC ·{' '}
-                {domainTerms.length} DDD
+                {detail.goalSpec.requirements.length} {tr(lang, '需求', 'FR')} ·{' '}
+                {detail.goalSpec.acceptanceCriteria.length}{' '}
+                {tr(lang, '验收', 'AC')} · {domainTerms.length}{' '}
+                {tr(lang, '术语', 'DDD')}
               </span>
               {detail.workflow.customization && (
-                <span className="tag tag-indigo mono">
-                  {detail.workflow.customization.templatePreset}
+                <span className="tag tag-indigo">
+                  {formatTemplatePreset(
+                    lang,
+                    detail.workflow.customization.templatePreset,
+                  )}
                 </span>
               )}
               {detail.validation.errorCount > 0 && (
@@ -477,7 +489,7 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
             onClick={() => setShowImport(true)}
           >
             <PlusIcon size={14} />{' '}
-            {tr(lang, '导入设计规格 (Spec)', 'Import Design Spec')}
+            {tr(lang, '导入设计规格', 'Import Design Spec')}
           </button>
           <button
             type="button"
@@ -485,7 +497,7 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
             disabled={!detail || busy}
             onClick={() => void handleExportPlan()}
           >
-            {tr(lang, '导出计划 / Mermaid', 'Export WBS / Mermaid')}
+            {tr(lang, '导出编排方案', 'Export Plan / Mermaid')}
           </button>
           <button
             type="button"
@@ -493,7 +505,7 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
             disabled={!detail || busy}
             onClick={() => void handleTrial()}
           >
-            {tr(lang, '隔离试运行 (Dry-Run)', 'Trial Run')}
+            {tr(lang, '隔离试运行', 'Trial Run')}
           </button>
           <button
             type="button"
@@ -538,18 +550,14 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
           className={`underline-tab ${subTab === 'spec' ? 'active' : ''}`}
           onClick={() => setSubTab('spec')}
         >
-          {tr(lang, '1. GoalSpec 与需求追踪', '1. GoalSpec & Traceability')}
+          {tr(lang, '1. 规格目标与需求追踪', '1. GoalSpec & Traceability')}
         </button>
         <button
           type="button"
           className={`underline-tab ${subTab === 'graph' ? 'active' : ''}`}
           onClick={() => setSubTab('graph')}
         >
-          {tr(
-            lang,
-            '2. WBS 任务拆解与双态编排图 (Twin-Graph)',
-            '2. WBS & Dual-Mode Twin-Graph',
-          )}
+          {tr(lang, '2. 任务拆解与双态编排图', '2. WBS & Dual-Mode Twin-Graph')}
         </button>
         <button
           type="button"
@@ -569,7 +577,7 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
           <div className="card">
             {tr(
               lang,
-              '请点击上方“导入需求文档”开始编排。',
+              '请点击上方“导入设计规格”开始编排。',
               'Import a Requirements Markdown document to begin.',
             )}
           </div>
@@ -591,7 +599,7 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                   <strong style={{fontSize: 13.5}}>
                     {tr(
                       lang,
-                      'PM Agent 设计规格分解与模块编排摘要',
+                      'PM 智能体规格分解与模块编排摘要',
                       'PM Agent Design Spec Decomposition & SE Modules',
                     )}
                   </strong>
@@ -609,13 +617,20 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                 </div>
                 <div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>
                   {detail.pmReport && (
-                    <span className="tag tag-indigo mono">
-                      {detail.pmReport.mode} · {detail.pmReport.templatePreset}
+                    <span className="tag tag-indigo">
+                      {detail.pmReport.mode === 'llm_assisted'
+                        ? tr(lang, '大模型协同分解', 'LLM Assisted')
+                        : tr(lang, '结构化分解', 'Structural PM')}{' '}
+                      ·{' '}
+                      {formatTemplatePreset(
+                        lang,
+                        detail.pmReport.templatePreset,
+                      )}
                     </span>
                   )}
                   {detail.pmReport?.skillsApplied.map(sk => (
                     <span key={sk} className="tag tag-green mono">
-                      skill:{sk}
+                      {tr(lang, '技能', 'skill')}:{sk}
                     </span>
                   ))}
                 </div>
@@ -697,12 +712,24 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                           color: 'var(--text-muted)',
                         }}
                       >
-                        <th style={{padding: '5px 6px'}}>WBS</th>
-                        <th style={{padding: '5px 6px'}}>Task Slice</th>
-                        <th style={{padding: '5px 6px'}}>Layer</th>
-                        <th style={{padding: '5px 6px'}}>Role</th>
-                        <th style={{padding: '5px 6px'}}>FR</th>
-                        <th style={{padding: '5px 6px'}}>Deps</th>
+                        <th style={{padding: '5px 6px'}}>
+                          {tr(lang, '节点编号', 'WBS')}
+                        </th>
+                        <th style={{padding: '5px 6px'}}>
+                          {tr(lang, '任务切片', 'Task Slice')}
+                        </th>
+                        <th style={{padding: '5px 6px'}}>
+                          {tr(lang, '层级', 'Layer')}
+                        </th>
+                        <th style={{padding: '5px 6px'}}>
+                          {tr(lang, '角色与执行', 'Role')}
+                        </th>
+                        <th style={{padding: '5px 6px'}}>
+                          {tr(lang, '关联需求', 'FR')}
+                        </th>
+                        <th style={{padding: '5px 6px'}}>
+                          {tr(lang, '前置依赖', 'Deps')}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -759,7 +786,7 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
               >
                 <div>
                   <div style={{fontWeight: 700, marginBottom: 4}}>
-                    {tr(lang, '输入契约 (Inputs)', 'Inputs')}
+                    {tr(lang, '输入契约', 'Inputs')}
                   </div>
                   <ul style={{margin: 0, paddingLeft: 18}}>
                     {detail.goalSpec.inputs.map((inp, i) => (
@@ -769,7 +796,7 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                 </div>
                 <div>
                   <div style={{fontWeight: 700, marginBottom: 4}}>
-                    {tr(lang, '交付产物 (Outputs)', 'Outputs')}
+                    {tr(lang, '输出契约', 'Outputs')}
                   </div>
                   <ul style={{margin: 0, paddingLeft: 18}}>
                     {detail.goalSpec.outputs.map((out, i) => (
@@ -782,8 +809,8 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                 <div style={{fontWeight: 700, marginBottom: 6}}>
                   {tr(
                     lang,
-                    '功能需求条目 (FR) 与节点映射',
-                    'Functional Requirements (FR)',
+                    '功能需求条目与节点映射',
+                    'Functional Requirements',
                   )}
                 </div>
                 {detail.goalSpec.requirements.map(r => {
@@ -842,7 +869,7 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                 <div style={{fontWeight: 700, marginBottom: 8}}>
                   {tr(
                     lang,
-                    '系统识别假设与人工确认 (doc / suggested)',
+                    '系统识别假设与人工确认',
                     'Assumptions & Confirmations',
                   )}
                 </div>
@@ -872,7 +899,11 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                               : 'tag-indigo'
                         }`}
                       >
-                        {a.source}
+                        {a.source === 'suggested'
+                          ? tr(lang, '智能推测', 'Suggested')
+                          : a.source === 'user_confirmed'
+                            ? tr(lang, '人工已确认', 'User Confirmed')
+                            : tr(lang, '规格原文', 'Spec Document')}
                       </span>
                       {a.source === 'suggested' && (
                         <button
@@ -895,11 +926,7 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
 
               <div className="card">
                 <div style={{fontWeight: 700, marginBottom: 8}}>
-                  {tr(
-                    lang,
-                    '原始需求文档 Markdown',
-                    'Raw Requirements Markdown',
-                  )}
+                  {tr(lang, '原始规格文档', 'Raw Requirements Markdown')}
                 </div>
                 <pre
                   className="mono"
@@ -941,7 +968,7 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                 </span>
                 {detail.lastImpact.affectedDownstreamCodes.length > 0 && (
                   <span className="mono">
-                    Downstream:{' '}
+                    {tr(lang, '受影响下游', 'Downstream')}:{' '}
                     {detail.lastImpact.affectedDownstreamCodes.join(', ')}
                   </span>
                 )}
@@ -975,7 +1002,7 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                 disabled={busy}
                 onClick={() => void handleReplan()}
               >
-                {tr(lang, '由 Spec 重生成', 'Recompile Graph')}
+                {tr(lang, '由规格重生成', 'Recompile Graph')}
               </button>
             </div>
 
@@ -985,7 +1012,9 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                   <span className="mono tag tag-indigo">
                     {selectedNode.code}
                   </span>{' '}
-                  <span className="tag">{selectedNode.kind}</span>
+                  <span className="tag">
+                    {formatNodeKind(lang, selectedNode.kind)}
+                  </span>
                 </div>
                 <label>
                   <span style={{fontSize: 11, color: 'var(--text-muted)'}}>
@@ -1013,15 +1042,23 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                         setEditExecKind(e.target.value as ExecutorKind)
                       }
                     >
-                      <option value="agent">agent</option>
-                      <option value="tool">tool</option>
-                      <option value="human">human</option>
-                      <option value="control">control</option>
+                      <option value="agent">
+                        {formatExecutorKind(lang, 'agent')}
+                      </option>
+                      <option value="tool">
+                        {formatExecutorKind(lang, 'tool')}
+                      </option>
+                      <option value="human">
+                        {formatExecutorKind(lang, 'human')}
+                      </option>
+                      <option value="control">
+                        {formatExecutorKind(lang, 'control')}
+                      </option>
                     </select>
                   </label>
                   <label>
                     <span style={{fontSize: 11, color: 'var(--text-muted)'}}>
-                      {tr(lang, '绑定能力 (Capability)', 'Capability')}
+                      {tr(lang, '绑定能力', 'Capability')}
                     </span>
                     <select
                       value={editCapId}
@@ -1029,7 +1066,10 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                     >
                       {capabilities.map(c => (
                         <option key={c.id} value={c.id}>
-                          {c.id} {!c.enabled ? '(disabled)' : ''}
+                          {c.id}
+                          {!c.enabled
+                            ? ` · ${tr(lang, '已禁用', 'disabled')}`
+                            : ''}
                         </option>
                       ))}
                     </select>
@@ -1037,11 +1077,7 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                 </div>
                 <label>
                   <span style={{fontSize: 11, color: 'var(--text-muted)'}}>
-                    {tr(
-                      lang,
-                      '规划依据 (Planning Rationale)',
-                      'Planning Rationale',
-                    )}
+                    {tr(lang, '规划依据', 'Planning Rationale')}
                   </span>
                   <textarea
                     rows={2}
@@ -1051,15 +1087,12 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                 </label>
                 <label>
                   <span style={{fontSize: 11, color: 'var(--text-muted)'}}>
-                    {tr(
-                      lang,
-                      '映射需求编号 (逗号分隔)',
-                      'Requirement Refs (comma-separated)',
-                    )}
+                    {tr(lang, '映射需求', 'Requirement Refs')}
                   </span>
                   <input
                     value={editReqRefs}
                     onChange={e => setEditReqRefs(e.target.value)}
+                    placeholder="FR-01, FR-02"
                   />
                 </label>
                 <div
@@ -1071,7 +1104,7 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                 >
                   <label>
                     <span style={{fontSize: 11, color: 'var(--text-muted)'}}>
-                      Input Contract
+                      {tr(lang, '输入契约', 'Input Contract')}
                     </span>
                     <input
                       value={editInputContract}
@@ -1080,7 +1113,7 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                   </label>
                   <label>
                     <span style={{fontSize: 11, color: 'var(--text-muted)'}}>
-                      Output Contract
+                      {tr(lang, '输出契约', 'Output Contract')}
                     </span>
                     <input
                       value={editOutputContract}
@@ -1090,21 +1123,31 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                 </div>
                 <label>
                   <span style={{fontSize: 11, color: 'var(--text-muted)'}}>
-                    File Scope (并行写冲突检测)
+                    {tr(lang, '影响范围', 'File Scope')}
                   </span>
                   <input
                     value={editFileScope}
                     onChange={e => setEditFileScope(e.target.value)}
+                    placeholder={tr(
+                      lang,
+                      '用于并行写冲突检测，逗号分隔路径',
+                      'Comma-separated paths for write-conflict guard',
+                    )}
                   />
                 </label>
                 <label>
                   <span style={{fontSize: 11, color: 'var(--text-muted)'}}>
-                    Gate / Tool Command (optional)
+                    {tr(lang, '验证命令', 'Gate / Tool Command')}
                   </span>
                   <input
                     className="mono"
                     value={editGateCmd}
                     onChange={e => setEditGateCmd(e.target.value)}
+                    placeholder={tr(
+                      lang,
+                      '可选门禁命令',
+                      'Optional gate command',
+                    )}
                   />
                 </label>
                 <button
@@ -1258,7 +1301,7 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                 <strong style={{fontSize: 14}}>
                   {tr(
                     lang,
-                    '隔离试运行 (Dry-Run) 仿真链路',
+                    '隔离试运行仿真链路',
                     'Isolated Trial Simulation Report',
                   )}
                 </strong>
@@ -1288,12 +1331,14 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                       }`}
                     >
                       {detail.latestTrial.passed
-                        ? 'TRIAL PASSED'
-                        : 'TRIAL BLOCKED'}
+                        ? tr(lang, '试运行通过', 'TRIAL PASSED')
+                        : tr(lang, '试运行阻断', 'TRIAL BLOCKED')}
                     </span>
                     <span className="tag">
-                      Active: {detail.latestTrial.simulatedPath.length} ·
-                      Skipped: {detail.latestTrial.skippedNodes.length}
+                      {tr(lang, '激活', 'Active')}:{' '}
+                      {detail.latestTrial.simulatedPath.length} ·{' '}
+                      {tr(lang, '跳过', 'Skipped')}:{' '}
+                      {detail.latestTrial.skippedNodes.length}
                     </span>
                   </div>
                   {detail.latestTrial.steps.map((s, idx) => (
@@ -1326,7 +1371,7 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                               : 'tag-green'
                         }`}
                       >
-                        {s.simulatedStatus}
+                        {formatNodeStatus(lang, s.simulatedStatus)}
                       </span>
                     </div>
                   ))}
@@ -1352,15 +1397,15 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
             <h3 style={{marginTop: 0}}>
               {tr(
                 lang,
-                '从产品设计规格生成可定制 SE Workflow',
-                'Compile Customizable SE Workflow from Design Spec',
+                '导入产品设计规格并生成研发编排流程',
+                'Compile Customizable Workflow from Design Spec',
               )}
             </h3>
             <p style={{color: 'var(--text-muted)', marginTop: 4}}>
               {tr(
                 lang,
-                '支持上传或切换任意产品的设计规格 (Design Spec)，由 PM Agent 分解模块任务并生成可定制的并行/条件 Twin-Graph。具体产品仅为可切换测试用例。',
-                'Upload or select any product Design Spec; PM Agent decomposes modules into a customizable parallel/conditional Twin-Graph.',
+                '支持上传或切换任意产品的设计规格，由 PM 智能体分解模块任务并生成并行与条件分支编排图。内置产品仅作可切换测试用例。',
+                'Upload or select any product design spec; PM Agent decomposes modules into a customizable parallel/conditional Twin-Graph.',
               )}
             </p>
 
@@ -1390,10 +1435,10 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                   <option key={p.id} value={p.id}>
                     {tr(
                       lang,
-                      `${p.categoryZh}: ${p.nameZh}`,
+                      `${p.categoryZh} · ${p.nameZh}`,
                       `${p.categoryEn}: ${p.nameEn}`,
                     )}{' '}
-                    ({p.recommendedTemplate})
+                    · {formatTemplatePreset(lang, p.recommendedTemplate)}
                   </option>
                 ))}
               </select>
@@ -1442,12 +1487,18 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                     }
                   }}
                 >
-                  <option value="fullstack_se">fullstack_se</option>
-                  <option value="microservice_hardened">
-                    microservice_hardened
+                  <option value="fullstack_se">
+                    {formatTemplatePreset(lang, 'fullstack_se')}
                   </option>
-                  <option value="rapid_ui_api">rapid_ui_api</option>
-                  <option value="custom">custom</option>
+                  <option value="microservice_hardened">
+                    {formatTemplatePreset(lang, 'microservice_hardened')}
+                  </option>
+                  <option value="rapid_ui_api">
+                    {formatTemplatePreset(lang, 'rapid_ui_api')}
+                  </option>
+                  <option value="custom">
+                    {formatTemplatePreset(lang, 'custom')}
+                  </option>
                 </select>
               </label>
               <label>
@@ -1462,13 +1513,21 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                     )
                   }
                 >
-                  <option value="hybrid_llm">hybrid_llm</option>
-                  <option value="structural">structural</option>
+                  <option value="hybrid_llm">
+                    {tr(
+                      lang,
+                      '智能混合分解 (OpenCode 大模型)',
+                      'Hybrid LLM PM',
+                    )}
+                  </option>
+                  <option value="structural">
+                    {tr(lang, '确定性结构分解', 'Structural PM')}
+                  </option>
                 </select>
               </label>
               <label>
                 <span style={{fontSize: 11, fontWeight: 600}}>
-                  {tr(lang, '最大并发 Worker', 'Max Parallel')}
+                  {tr(lang, '最大并发节点', 'Max Parallel')}
                 </span>
                 <input
                   type="number"
@@ -1484,7 +1543,7 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
               </label>
               <label>
                 <span style={{fontSize: 11, fontWeight: 600}}>
-                  {tr(lang, '预算上限 (USD)', 'Budget Limit ($)')}
+                  {tr(lang, '美元预算上限', 'Budget Limit ($)')}
                 </span>
                 <input
                   type="number"
@@ -1504,47 +1563,90 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                   gridColumn: '1 / -1',
                   display: 'flex',
                   flexWrap: 'wrap',
-                  gap: 14,
+                  alignItems: 'center',
+                  gap: 18,
                   fontSize: 12,
                   paddingTop: 4,
                 }}
               >
-                <label style={{display: 'flex', alignItems: 'center', gap: 5}}>
+                <label
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    whiteSpace: 'nowrap',
+                    cursor: 'pointer',
+                  }}
+                >
                   <input
                     type="checkbox"
                     checked={includeHumanGate}
                     onChange={e => setIncludeHumanGate(e.target.checked)}
                   />
-                  {tr(
-                    lang,
-                    '包含人工审批闸 (Human Gate)',
-                    'Human Approval Gate',
-                  )}
+                  {tr(lang, '人工审批', 'Human Approval Gate')}
                 </label>
-                <label style={{display: 'flex', alignItems: 'center', gap: 5}}>
+                <label
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    whiteSpace: 'nowrap',
+                    cursor: 'pointer',
+                  }}
+                >
                   <input
                     type="checkbox"
                     checked={includeSecurityPass}
                     onChange={e => setIncludeSecurityPass(e.target.checked)}
                   />
-                  {tr(lang, '安全/幂等加固节点', 'Security Hardening Pass')}
+                  {tr(lang, '安全加固', 'Security Hardening Pass')}
                 </label>
-                <label style={{display: 'flex', alignItems: 'center', gap: 5}}>
+                <label
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    whiteSpace: 'nowrap',
+                    cursor: 'pointer',
+                  }}
+                >
                   <input
                     type="checkbox"
                     checked={includeQaAudit}
                     onChange={e => setIncludeQaAudit(e.target.checked)}
                   />
-                  {tr(lang, '独立 QA 对抗审校', 'Adversarial QA Audit')}
+                  {tr(lang, '独立审校', 'Adversarial QA Audit')}
                 </label>
-                <label style={{display: 'flex', alignItems: 'center', gap: 5}}>
+                <label
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    whiteSpace: 'nowrap',
+                    cursor: 'pointer',
+                  }}
+                >
                   <input
                     type="checkbox"
                     checked={dddStrictCheck}
                     onChange={e => setDddStrictCheck(e.target.checked)}
                   />
-                  {tr(lang, 'DDD 术语漂移校验', 'DDD Terminology Guard')}
+                  {tr(lang, '术语守卫', 'DDD Terminology Guard')}
                 </label>
+              </div>
+              <div
+                style={{
+                  gridColumn: '1 / -1',
+                  fontSize: 11,
+                  color: 'var(--text-muted)',
+                  lineHeight: 1.4,
+                }}
+              >
+                {tr(
+                  lang,
+                  '流程模板决定阶段结构与默认检查点；四个开关控制是否插入人工门禁、安全扫描、QA 审校与术语检查。',
+                  'Workflow template selects phase layout & default checkpoints; toggles insert human gate, security scan, QA audit, and DDD guard.',
+                )}
               </div>
             </div>
 
@@ -1566,9 +1668,15 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                     setImportTier(e.target.value as PermissionTier)
                   }
                 >
-                  <option value="supervised">supervised</option>
-                  <option value="strict">strict (with human gate)</option>
-                  <option value="turbo">turbo</option>
+                  <option value="supervised">
+                    {tr(lang, '监督模式 (门禁护栏)', 'Supervised')}
+                  </option>
+                  <option value="strict">
+                    {tr(lang, '严格审批模式 (含人工闸)', 'Strict (Human Gate)')}
+                  </option>
+                  <option value="turbo">
+                    {tr(lang, '高速自治模式', 'Turbo')}
+                  </option>
                 </select>
               </label>
               <label>
@@ -1611,7 +1719,7 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
               >
                 {tr(
                   lang,
-                  'PM 分解并生成可定制编排图',
+                  'PM 分解并生成编排图',
                   'PM Decompose & Compile Twin-Graph',
                 )}
               </button>
@@ -1650,14 +1758,14 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
                   className={`nav-pill ${exportTab === 'markdown' ? 'active' : ''}`}
                   onClick={() => setExportTab('markdown')}
                 >
-                  Markdown WBS
+                  {tr(lang, 'Markdown 方案', 'Markdown WBS')}
                 </button>
                 <button
                   type="button"
                   className={`nav-pill ${exportTab === 'mermaid' ? 'active' : ''}`}
                   onClick={() => setExportTab('mermaid')}
                 >
-                  Mermaid DAG
+                  {tr(lang, 'Mermaid 流程图', 'Mermaid DAG')}
                 </button>
                 <button
                   type="button"

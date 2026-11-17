@@ -12,7 +12,14 @@ import {
 } from '@xyflow/react';
 import {type ReactElement, useMemo} from 'react';
 import type {GraphEdge, GraphNode} from '../../../src/shared/types';
-import {formatExecutorKind, formatNodeStatus, tr, type UiLang} from '../i18n';
+import {
+  formatEdgeLabel,
+  formatExecutorKind,
+  formatNodeKind,
+  formatNodeStatus,
+  tr,
+  type UiLang,
+} from '../i18n';
 
 interface PhaseBoxData extends Record<string, unknown> {
   readonly node: GraphNode;
@@ -35,8 +42,19 @@ function PhaseBoxRenderer({data}: NodeProps<Node<PhaseBoxData>>): ReactElement {
   return (
     <div className="phase-box">
       <div className="phase-header">
-        <span>{node.title}</span>
-        <div style={{display: 'flex', alignItems: 'center', gap: 6}}>
+        <span
+          style={{
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+          title={node.title}
+        >
+          {node.title}
+        </span>
+        <div
+          style={{display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0}}
+        >
           <span className="tag">
             {doneCount}/{totalCount}
           </span>
@@ -60,15 +78,64 @@ function PhaseBoxRenderer({data}: NodeProps<Node<PhaseBoxData>>): ReactElement {
   );
 }
 
+function getDesignBadge(
+  lang: UiLang,
+  node: GraphNode,
+): {readonly className: string; readonly label: string} {
+  switch (node.kind) {
+    case 'checkpoint':
+      return {
+        className: 'tag tag-teal',
+        label: formatNodeKind(lang, 'checkpoint'),
+      };
+    case 'restore':
+      return {className: 'tag tag-red', label: formatNodeKind(lang, 'restore')};
+    case 'human_gate':
+      return {
+        className: 'tag tag-amber',
+        label: formatNodeKind(lang, 'human_gate'),
+      };
+    case 'decision':
+      return {
+        className: 'tag tag-indigo',
+        label: formatNodeKind(lang, 'decision'),
+      };
+    default:
+      return {
+        className: 'tag tag-indigo',
+        label: formatExecutorKind(lang, node.executorKind),
+      };
+  }
+}
+
+function getRunStatusTagClass(node: GraphNode): string {
+  switch (node.status) {
+    case 'succeeded':
+    case 'waived':
+      return 'tag tag-green';
+    case 'failed':
+      return 'tag tag-red';
+    case 'waiting_human':
+      return 'tag tag-amber';
+    case 'running':
+      return 'tag tag-indigo';
+    default:
+      return node.kind === 'checkpoint' ? 'tag tag-teal' : 'tag';
+  }
+}
+
 function TwinNodeRenderer({data}: NodeProps<Node<TwinNodeData>>): ReactElement {
   const {node, selected, impacted, lang, mode} = data;
   const cls = [
     'graph-node-card',
+    `kind-${node.kind}`,
     selected ? 'selected' : '',
     mode === 'run' ? `status-${node.status}` : '',
   ]
     .filter(Boolean)
     .join(' ');
+
+  const designBadge = getDesignBadge(lang, node);
 
   return (
     <div
@@ -81,6 +148,8 @@ function TwinNodeRenderer({data}: NodeProps<Node<TwinNodeData>>): ReactElement {
     >
       <Handle type="target" position={Position.Top} id="top" />
       <Handle type="target" position={Position.Left} id="left" />
+      <Handle type="target" position={Position.Right} id="right" />
+      <Handle type="target" position={Position.Bottom} id="bottom" />
       <div
         style={{
           display: 'flex',
@@ -89,19 +158,40 @@ function TwinNodeRenderer({data}: NodeProps<Node<TwinNodeData>>): ReactElement {
           gap: 6,
         }}
       >
-        <span
-          className="mono"
-          style={{fontSize: 10.5, fontWeight: 700, color: '#475569'}}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            minWidth: 0,
+          }}
         >
-          {node.code}
-        </span>
+          <span
+            className="mono"
+            style={{
+              fontSize: 10.5,
+              fontWeight: 700,
+              color: node.kind === 'checkpoint' ? '#0f766e' : '#475569',
+            }}
+          >
+            {node.code}
+          </span>
+          {mode === 'run' && node.kind === 'checkpoint' && (
+            <span
+              className="tag tag-teal"
+              style={{fontSize: 9.5, padding: '0 5px'}}
+            >
+              {formatNodeKind(lang, 'checkpoint')}
+            </span>
+          )}
+        </div>
         {mode === 'run' ? (
-          <span className="tag" style={{fontSize: 10}}>
+          <span className={getRunStatusTagClass(node)} style={{fontSize: 10}}>
             {formatNodeStatus(lang, node.status)}
           </span>
         ) : (
-          <span className="tag tag-indigo" style={{fontSize: 10}}>
-            {formatExecutorKind(lang, node.executorKind)}
+          <span className={designBadge.className} style={{fontSize: 10}}>
+            {designBadge.label}
           </span>
         )}
       </div>
@@ -131,16 +221,24 @@ function TwinNodeRenderer({data}: NodeProps<Node<TwinNodeData>>): ReactElement {
       >
         <span
           className="mono"
-          style={{overflow: 'hidden', textOverflow: 'ellipsis'}}
+          style={{
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
         >
           {node.capabilityId}
         </span>
         {node.requirementRefs.length > 0 && (
-          <span>{node.requirementRefs.slice(0, 2).join(',')}</span>
+          <span style={{flexShrink: 0}}>
+            {node.requirementRefs.slice(0, 2).join(',')}
+          </span>
         )}
       </div>
       <Handle type="source" position={Position.Bottom} id="bottom" />
       <Handle type="source" position={Position.Right} id="right" />
+      <Handle type="source" position={Position.Left} id="left" />
+      <Handle type="source" position={Position.Top} id="top" />
     </div>
   );
 }
@@ -238,55 +336,109 @@ export function TwinGraphCanvas(props: TwinGraphCanvasProps): ReactElement {
     }
 
     const visibleIds = new Set(outNodes.map(n => n.id));
-    const outEdges: Edge[] = edges
-      .filter(
-        e => visibleIds.has(e.sourceNodeId) && visibleIds.has(e.targetNodeId),
-      )
-      .map(e => {
-        const src = byId.get(e.sourceNodeId);
-        const tgt = byId.get(e.targetNodeId);
-        const isFail = e.kind === 'fail';
-        const isLoop = e.kind === 'loop';
-        const isPass = e.kind === 'pass';
-        const stroke = isFail
-          ? '#ef4444'
-          : isLoop
-            ? '#f59e0b'
-            : isPass
-              ? '#16a34a'
+    const visibleEdges = edges.filter(
+      e => visibleIds.has(e.sourceNodeId) && visibleIds.has(e.targetNodeId),
+    );
+    const syncEdgesByTarget = new Map<string, number>();
+    for (const e of visibleEdges) {
+      if (e.label.trim().toLowerCase() === 'sync') {
+        syncEdgesByTarget.set(
+          e.targetNodeId,
+          (syncEdgesByTarget.get(e.targetNodeId) ?? 0) + 1,
+        );
+      }
+    }
+    const syncSeenByTarget = new Map<string, number>();
+
+    const outEdges: Edge[] = visibleEdges.map(e => {
+      const src = byId.get(e.sourceNodeId);
+      const tgt = byId.get(e.targetNodeId);
+      const isFail = e.kind === 'fail';
+      const isLoop = e.kind === 'loop';
+      const isPass = e.kind === 'pass';
+      const isCheckpointEdge =
+        !isFail &&
+        !isLoop &&
+        !isPass &&
+        (src?.kind === 'checkpoint' || tgt?.kind === 'checkpoint');
+
+      const stroke = isFail
+        ? '#ef4444'
+        : isLoop
+          ? '#f59e0b'
+          : isPass
+            ? '#16a34a'
+            : isCheckpointEdge
+              ? '#0d9488'
               : '#6366f1';
 
-        const horizontal =
-          src &&
-          tgt &&
-          Math.abs(src.positionY - tgt.positionY) < 44 &&
-          tgt.positionX > src.positionX;
+      let sourceHandle = 'bottom';
+      let targetHandle = 'top';
+      if (isLoop) {
+        sourceHandle = 'left';
+        targetHandle = 'left';
+      } else if (src && tgt) {
+        const dx = tgt.positionX - src.positionX;
+        const dy = tgt.positionY - src.positionY;
+        if (dx !== 0 && Math.abs(dx) >= Math.abs(dy)) {
+          if (dx > 0) {
+            sourceHandle = 'right';
+            targetHandle = 'left';
+          } else {
+            sourceHandle = 'left';
+            targetHandle = 'right';
+          }
+        } else if (dy >= 0) {
+          sourceHandle = 'bottom';
+          targetHandle = 'top';
+        } else {
+          sourceHandle = 'top';
+          targetHandle = 'bottom';
+        }
+      }
 
-        return {
-          id: e.id,
-          source: e.sourceNodeId,
-          target: e.targetNodeId,
-          sourceHandle: horizontal ? 'right' : 'bottom',
-          targetHandle: horizontal ? 'left' : 'top',
-          type: 'smoothstep',
-          animated: mode === 'run' && src?.status === 'running',
-          label: e.label || undefined,
-          labelStyle: {fontSize: 10, fontWeight: 600, fill: '#334155'},
-          labelShowBg: Boolean(e.label),
-          labelBgStyle: {fill: '#ffffff', fillOpacity: 0.92},
-          markerEnd: {
-            type: MarkerType.ArrowClosed,
-            color: stroke,
-            width: 14,
-            height: 14,
-          },
-          style: {
-            stroke,
-            strokeWidth: isFail || isLoop ? 1.8 : 1.4,
-            strokeDasharray: isLoop ? '4 4' : undefined,
-          },
-        };
-      });
+      const rawTrimmed = e.label.trim();
+      const isSync = rawTrimmed.toLowerCase() === 'sync';
+      let edgeLabel: string | undefined = rawTrimmed
+        ? formatEdgeLabel(lang, rawTrimmed)
+        : undefined;
+      if (isSync) {
+        const totalSync = syncEdgesByTarget.get(e.targetNodeId) ?? 1;
+        const seen = syncSeenByTarget.get(e.targetNodeId) ?? 0;
+        syncSeenByTarget.set(e.targetNodeId, seen + 1);
+        if (totalSync > 1 && seen !== Math.floor(totalSync / 2)) {
+          edgeLabel = undefined;
+        }
+      }
+
+      return {
+        id: e.id,
+        source: e.sourceNodeId,
+        target: e.targetNodeId,
+        sourceHandle,
+        targetHandle,
+        type: 'smoothstep',
+        zIndex: 10,
+        animated: mode === 'run' && src?.status === 'running',
+        label: edgeLabel,
+        labelStyle: {fontSize: 10, fontWeight: 600, fill: '#334155'},
+        labelShowBg: Boolean(edgeLabel),
+        labelBgStyle: {fill: '#ffffff', fillOpacity: 0.94},
+        labelBgPadding: [4, 2] as [number, number],
+        labelBgBorderRadius: 4,
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: stroke,
+          width: 14,
+          height: 14,
+        },
+        style: {
+          stroke,
+          strokeWidth: isFail || isLoop ? 1.8 : 1.4,
+          strokeDasharray: isLoop ? '4 4' : undefined,
+        },
+      };
+    });
 
     return {rfNodes: outNodes, rfEdges: outEdges};
   }, [
@@ -311,7 +463,26 @@ export function TwinGraphCanvas(props: TwinGraphCanvasProps): ReactElement {
       >
         <Background gap={18} size={1} color="#e2e8f0" />
         <Controls showInteractive={false} />
-        <MiniMap pannable zoomable />
+        <MiniMap
+          pannable
+          zoomable
+          nodeColor={n => {
+            if (n.type === 'phaseBox') {
+              return '#eef2ff';
+            }
+            const gNode = (n.data as TwinNodeData | undefined)?.node;
+            if (gNode?.kind === 'checkpoint') {
+              return '#0d9488';
+            }
+            if (gNode?.kind === 'restore') {
+              return '#ef4444';
+            }
+            if (gNode?.kind === 'human_gate') {
+              return '#f59e0b';
+            }
+            return '#94a3b8';
+          }}
+        />
       </ReactFlow>
     </div>
   );

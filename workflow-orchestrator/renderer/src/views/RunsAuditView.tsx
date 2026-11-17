@@ -22,6 +22,70 @@ interface RunsAuditViewProps {
   readonly onOpenRun: (runId: string) => void;
 }
 
+function formatEvidenceSource(
+  lang: UiLang,
+  source: EvidenceSearchHit['source'],
+): string {
+  switch (source) {
+    case 'session_message':
+      return tr(lang, '会话消息', 'session');
+    case 'audit_ledger':
+      return tr(lang, '审计账本', 'audit');
+    case 'attempt':
+      return tr(lang, '执行尝试', 'attempt');
+    default:
+      return source;
+  }
+}
+
+function formatAuditCategory(
+  lang: UiLang,
+  category: AuditLedgerEntry['category'],
+): string {
+  switch (category) {
+    case 'spec':
+      return tr(lang, '需求规格', 'spec');
+    case 'plan':
+      return tr(lang, '编排规划', 'plan');
+    case 'validation':
+      return tr(lang, '静态校验', 'validation');
+    case 'trial':
+      return tr(lang, '沙箱试跑', 'trial');
+    case 'version':
+      return tr(lang, '版本快照', 'version');
+    case 'execution':
+      return tr(lang, '任务执行', 'execution');
+    case 'checkpoint':
+      return tr(lang, '物理检查点', 'checkpoint');
+    case 'intervention':
+      return tr(lang, '人工裁决', 'intervention');
+    case 'capability':
+      return tr(lang, '能力适配', 'capability');
+    case 'governance':
+      return tr(lang, '工程治理', 'governance');
+    case 'dreaming':
+      return tr(lang, '睡眠整合', 'dreaming');
+    default:
+      return category;
+  }
+}
+
+function formatCapsuleTier(
+  lang: UiLang,
+  tier: RehydrationCapsule['tier'],
+): string {
+  switch (tier) {
+    case 'warm':
+      return tr(lang, '热记忆', 'Warm');
+    case 'delta_30s':
+      return tr(lang, '30秒增量恢复', 'Delta 30s');
+    case 'deep_reanchor':
+      return tr(lang, '深度重锚', 'Deep Re-anchor');
+    default:
+      return tier;
+  }
+}
+
 export function RunsAuditView(props: RunsAuditViewProps): ReactElement {
   const {
     lang,
@@ -103,20 +167,20 @@ export function RunsAuditView(props: RunsAuditViewProps): ReactElement {
           <HistoryIcon size={18} />{' '}
           {tr(
             lang,
-            '版本快照、执行记录与 FTS5 审计证据链',
-            'Version Registry, Runs & FTS5 Audit Trail',
+            '版本快照、运行记录与全文证据检索',
+            'Version Registry, Runs & Full-Text Audit Trail',
           )}
         </h2>
         <div style={{color: 'var(--text-muted)', marginTop: 3}}>
           {tr(
             lang,
-            '支持版本不可变快照核查、历史 Run 跳转，以及跨会话日志/审计账本全文检索。',
-            'Inspect immutable workflow snapshots, jump into runs, and query FTS5 execution evidence.',
+            '支持不可变版本快照核查、历史运行实例跳转，以及跨会话日志与审计账本全文检索。',
+            'Inspect immutable workflow snapshots, jump into runs, and query execution evidence.',
           )}
         </div>
       </div>
 
-      {/* FTS5 Search Bar */}
+      {/* Full-Text Evidence Search Bar */}
       <div className="card" style={{marginBottom: 16}}>
         <div style={{display: 'flex', gap: 8}}>
           <input
@@ -129,7 +193,7 @@ export function RunsAuditView(props: RunsAuditViewProps): ReactElement {
             }}
             placeholder={tr(
               lang,
-              'FTS5 全文证据检索：输入 FR-01、checkpoint、QA、rescue...',
+              '全文证据检索：输入 FR-01、检查点、QA、救援分支等关键词...',
               'Search FTS5 evidence across audit & transcripts (e.g. FR-01, checkpoint, QA)...',
             )}
           />
@@ -158,11 +222,7 @@ export function RunsAuditView(props: RunsAuditViewProps): ReactElement {
         {hits !== null && (
           <div style={{marginTop: 12}}>
             <strong>
-              {tr(
-                lang,
-                `命中 ${hits.length} 条记录`,
-                `${hits.length} FTS5 Hit(s)`,
-              )}
+              {tr(lang, `命中 ${hits.length} 条记录`, `${hits.length} Hit(s)`)}
             </strong>
             {hits.length === 0 ? (
               <div style={{color: 'var(--text-muted)', marginTop: 4}}>
@@ -180,10 +240,17 @@ export function RunsAuditView(props: RunsAuditViewProps): ReactElement {
                   }}
                 >
                   <div
-                    style={{display: 'flex', justifyContent: 'space-between'}}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 8,
+                    }}
                   >
                     <span>
-                      <span className="tag tag-indigo">{h.source}</span>{' '}
+                      <span className="tag tag-indigo">
+                        {formatEvidenceSource(lang, h.source)}
+                      </span>{' '}
                       <strong>{h.title}</strong>
                     </span>
                     {h.runId && (
@@ -192,7 +259,7 @@ export function RunsAuditView(props: RunsAuditViewProps): ReactElement {
                         className="btn btn-sm"
                         onClick={() => onOpenRun(h.runId!)}
                       >
-                        Open {h.runId}
+                        {tr(lang, `跳转 ${h.runId}`, `Open ${h.runId}`)}
                       </button>
                     )}
                   </div>
@@ -216,11 +283,7 @@ export function RunsAuditView(props: RunsAuditViewProps): ReactElement {
         {/* Immutable Versions */}
         <div className="card">
           <strong style={{fontSize: 13.5}}>
-            {tr(
-              lang,
-              '不可变版本快照 (Locked Versions)',
-              'Immutable Version Snapshots',
-            )}
+            {tr(lang, '不可变版本快照', 'Immutable Version Snapshots')}
           </strong>
           <div style={{marginTop: 8}}>
             {versions.length === 0 ? (
@@ -248,7 +311,11 @@ export function RunsAuditView(props: RunsAuditViewProps): ReactElement {
                       {v.label}
                     </strong>
                     <span className="tag tag-green">
-                      {v.nodes.length} nodes
+                      {tr(
+                        lang,
+                        `${v.nodes.length} 个节点`,
+                        `${v.nodes.length} nodes`,
+                      )}
                     </span>
                   </div>
                   <div
@@ -258,12 +325,11 @@ export function RunsAuditView(props: RunsAuditViewProps): ReactElement {
                       marginTop: 3,
                     }}
                   >
-                    Frozen by {v.frozenBy} · Trial:{' '}
-                    {v.trial
-                      ? v.trial.passed
-                        ? 'PASSED'
-                        : 'BLOCKED'
-                      : 'Not run'}
+                    {tr(
+                      lang,
+                      `锁定人 ${v.frozenBy} · 试运行：${v.trial ? (v.trial.passed ? '已通过' : '已拦截') : '未运行'}`,
+                      `Frozen by ${v.frozenBy} · Trial: ${v.trial ? (v.trial.passed ? 'PASSED' : 'BLOCKED') : 'Not run'}`,
+                    )}
                   </div>
                 </div>
               ))
@@ -274,7 +340,7 @@ export function RunsAuditView(props: RunsAuditViewProps): ReactElement {
         {/* Runs History */}
         <div className="card">
           <strong style={{fontSize: 13.5}}>
-            {tr(lang, '编排运行实例 (Runs)', 'Execution Runs')}
+            {tr(lang, '编排运行实例', 'Execution Runs')}
           </strong>
           <div style={{marginTop: 8}}>
             {runs.length === 0 ? (
@@ -310,8 +376,11 @@ export function RunsAuditView(props: RunsAuditViewProps): ReactElement {
                       className="mono"
                       style={{fontSize: 11, color: 'var(--text-muted)'}}
                     >
-                      {r.versionTag} · {r.completedNodes}/{r.totalNodes} done ·
-                      rework {r.reworkCount} · ${(r.spentUsd ?? 0).toFixed(4)}
+                      {tr(
+                        lang,
+                        `${r.versionTag} · 完成 ${r.completedNodes}/${r.totalNodes} · 返工 ${r.reworkCount} · $${(r.spentUsd ?? 0).toFixed(4)}`,
+                        `${r.versionTag} · ${r.completedNodes}/${r.totalNodes} done · rework ${r.reworkCount} · $${(r.spentUsd ?? 0).toFixed(4)}`,
+                      )}
                     </div>
                   </div>
                   <button
@@ -341,7 +410,7 @@ export function RunsAuditView(props: RunsAuditViewProps): ReactElement {
           <strong style={{fontSize: 13.5}}>
             {tr(
               lang,
-              '人机认知记忆胶囊 (Ebbinghaus Re-hydration)',
+              '人机认知记忆胶囊',
               'Human × Agent Re-hydration Capsules',
             )}
           </strong>
@@ -382,7 +451,8 @@ export function RunsAuditView(props: RunsAuditViewProps): ReactElement {
                               : 'tag-amber'
                         }`}
                       >
-                        {c.tier} · {Math.round(c.retentionScore * 100)}%
+                        {formatCapsuleTier(lang, c.tier)} ·{' '}
+                        {Math.round(c.retentionScore * 100)}%
                       </span>
                     </div>
                     <button
@@ -401,9 +471,11 @@ export function RunsAuditView(props: RunsAuditViewProps): ReactElement {
                       marginTop: 4,
                     }}
                   >
-                    {c.elapsedHours.toFixed(1)}h elapsed · stability{' '}
-                    {c.stabilityHours.toFixed(1)}h · entropy{' '}
-                    {c.mutationEntropy.toFixed(2)}
+                    {tr(
+                      lang,
+                      `已流逝 ${c.elapsedHours.toFixed(1)}h · 稳定度 ${c.stabilityHours.toFixed(1)}h · 变更熵 ${c.mutationEntropy.toFixed(2)}`,
+                      `${c.elapsedHours.toFixed(1)}h elapsed · stability ${c.stabilityHours.toFixed(1)}h · entropy ${c.mutationEntropy.toFixed(2)}`,
+                    )}
                   </div>
                   <div style={{fontSize: 12, marginTop: 4}}>
                     {c.autonomousDeltaBullets[0] ?? c.northStarGoal}
@@ -426,7 +498,7 @@ export function RunsAuditView(props: RunsAuditViewProps): ReactElement {
             <strong style={{fontSize: 13.5}}>
               {tr(
                 lang,
-                '全局工程宪法与高危指令沙箱拦截 (Constitution)',
+                '全局工程宪法与高危指令拦截',
                 'Global Engineering Constitution & Guardrails',
               )}
             </strong>
@@ -454,7 +526,7 @@ export function RunsAuditView(props: RunsAuditViewProps): ReactElement {
           <div style={{fontSize: 11.5, fontWeight: 600, marginBottom: 4}}>
             {tr(
               lang,
-              '沙箱黑名单命令模式 (每行一个)',
+              '沙箱黑名单命令模式 · 每行一条规则',
               'Blocked Command Patterns (one per line)',
             )}
           </div>
@@ -470,11 +542,7 @@ export function RunsAuditView(props: RunsAuditViewProps): ReactElement {
       {/* Audit Ledger */}
       <div className="card" style={{marginTop: 16}}>
         <strong style={{fontSize: 13.5}}>
-          {tr(
-            lang,
-            '最近编排审计账本 (Audit Ledger)',
-            'Recent Orchestration Audit Ledger',
-          )}
+          {tr(lang, '最近编排审计账本', 'Recent Orchestration Audit Ledger')}
         </strong>
         <div style={{marginTop: 8}}>
           {recentAudit.map(entry => (
@@ -490,7 +558,9 @@ export function RunsAuditView(props: RunsAuditViewProps): ReactElement {
               }}
             >
               <div>
-                <span className="tag">{entry.category}</span>{' '}
+                <span className="tag">
+                  {formatAuditCategory(lang, entry.category)}
+                </span>{' '}
                 <strong>{entry.title}</strong>
                 <div style={{color: 'var(--text-muted)', fontSize: 11.5}}>
                   {entry.detail}

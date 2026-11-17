@@ -291,10 +291,22 @@ export function planCustomizableTwinGraph(input: {
   const edges: GraphEdge[] = [];
 
   const p1ContainerId = makeNodeId('p1');
+  const p1CkptId = makeNodeId('p1ckpt');
   const p2ContainerId = makeNodeId('p2');
+  const p2CkptId = makeNodeId('p2ckpt');
   const p3ContainerId = makeNodeId('p3');
 
-  const p2RowHeight = Math.max(370, 120 + slices.length * 96);
+  const p1Top = 20;
+  const p1Width = 840;
+  const p1Height = 174;
+  const p1CkptY = p1Top + p1Height + 54; // 248
+  const p2Top = p1CkptY + 68 + 72; // 388
+  const p2Width = Math.max(840, 24 + slices.length * 272);
+  const p2Height = 424;
+  const p2CkptY = p2Top + p2Height + 50; // 862
+  const p3Top = p2CkptY + 68 + 72; // 1002
+  const p3Width = 840;
+  const p3Height = 320;
 
   nodes.push(
     {
@@ -326,9 +338,9 @@ export function planCustomizableTwinGraph(input: {
       maxAttempts: 1,
       collapsed: false,
       positionX: 40,
-      positionY: 32,
-      width: 270,
-      height: resolved.includeHumanGate ? 370 : 270,
+      positionY: p1Top,
+      width: p1Width,
+      height: p1Height,
       outputSummary: '',
       restoreTargetCheckpointId: null,
       updatedAt: now,
@@ -353,7 +365,7 @@ export function planCustomizableTwinGraph(input: {
       planningRationale:
         'Maximizes safe throughput with disjoint scopes and fail-closed Join convergence.',
       requirementRefs: allReqCodes,
-      inputContract: 'Verified Shared Contracts & WBS Decomposition',
+      inputContract: 'Phase 1 Git Baseline SHA',
       outputContract: 'Integrated Feature Diff & Artifacts',
       fileScope: [],
       gateCommand: null,
@@ -362,10 +374,10 @@ export function planCustomizableTwinGraph(input: {
       attemptCount: 0,
       maxAttempts: 1,
       collapsed: false,
-      positionX: 350,
-      positionY: 32,
-      width: 600,
-      height: p2RowHeight,
+      positionX: 40,
+      positionY: p2Top,
+      width: p2Width,
+      height: p2Height,
       outputSummary: '',
       restoreTargetCheckpointId: null,
       updatedAt: now,
@@ -390,7 +402,7 @@ export function planCustomizableTwinGraph(input: {
       planningRationale:
         'Separates objective command gates from independent QA review with bounded automatic rollback.',
       requirementRefs: allAcCodes,
-      inputContract: 'Integrated Feature Diff & Artifacts',
+      inputContract: 'Phase 2 Integrated Git Commit SHA',
       outputContract: goalSpec.outputs.join(' + '),
       fileScope: [],
       gateCommand: null,
@@ -399,17 +411,17 @@ export function planCustomizableTwinGraph(input: {
       attemptCount: 0,
       maxAttempts: 1,
       collapsed: false,
-      positionX: 990,
-      positionY: 32,
-      width: 500,
-      height: 370,
+      positionX: 40,
+      positionY: p3Top,
+      width: p3Width,
+      height: p3Height,
       outputSummary: '',
       restoreTargetCheckpointId: null,
       updatedAt: now,
     },
   );
 
-  // Phase 1 nodes
+  // Phase 1 nodes (top clearance >= 56px inside P1)
   const startId = makeNodeId('start');
   const p1TaskId = makeNodeId('p1t1');
   const p1GateId = resolved.includeHumanGate ? makeNodeId('p1gate') : null;
@@ -449,9 +461,9 @@ export function planCustomizableTwinGraph(input: {
       maxAttempts: 1,
       collapsed: false,
       positionX: 64,
-      positionY: 82,
-      width: 220,
-      height: 68,
+      positionY: p1Top + 56,
+      width: 196,
+      height: 72,
       outputSummary: '',
       restoreTargetCheckpointId: null,
       updatedAt: now,
@@ -484,10 +496,10 @@ export function planCustomizableTwinGraph(input: {
       attemptCount: 0,
       maxAttempts: 2,
       collapsed: false,
-      positionX: 64,
-      positionY: 178,
-      width: 220,
-      height: 82,
+      positionX: 336,
+      positionY: p1Top + 56,
+      width: 212,
+      height: 72,
       outputSummary: '',
       restoreTargetCheckpointId: null,
       updatedAt: now,
@@ -535,10 +547,10 @@ export function planCustomizableTwinGraph(input: {
       attemptCount: 0,
       maxAttempts: 1,
       collapsed: false,
-      positionX: 64,
-      positionY: 288,
-      width: 220,
-      height: 76,
+      positionX: 608,
+      positionY: p1Top + 56,
+      width: 212,
+      height: 72,
       outputSummary: '',
       restoreTargetCheckpointId: null,
       updatedAt: now,
@@ -555,6 +567,57 @@ export function planCustomizableTwinGraph(input: {
     phase1ExitId = p1GateId;
   }
 
+  // Explicit Inter-Phase Checkpoint 1 (between Phase 1 & Phase 2)
+  nodes.push({
+    id: p1CkptId,
+    scopeId,
+    code: 'P1.CKPT',
+    parentWbsId: null,
+    containerNodeId: null,
+    phaseId: null,
+    phaseTitle: 'Phase 1 -> Phase 2 Physical Checkpoint',
+    depth: 1,
+    kind: 'checkpoint',
+    executorKind: 'control',
+    capabilityId: controlCap,
+    assignedRole: 'lead',
+    assignedModel: null,
+    title: 'Phase 1 基线物理检查点',
+    description:
+      'Commit Phase 1 design contracts and create a recoverable Git baseline checkpoint before parallel execution.',
+    planningRationale:
+      'Anchors an immutable Git commit before Phase 2 parallel workers mutate the worktree.',
+    requirementRefs: allReqCodes.slice(0, 1),
+    inputContract: p1GateId
+      ? 'Human Approval Token'
+      : 'Verified Shared Contracts',
+    outputContract: 'Phase 1 Git Baseline SHA',
+    fileScope: [],
+    gateCommand: null,
+    branchCondition: null,
+    status: 'pending',
+    attemptCount: 0,
+    maxAttempts: 1,
+    collapsed: false,
+    positionX: 336,
+    positionY: p1CkptY,
+    width: 212,
+    height: 68,
+    outputSummary: '',
+    restoreTargetCheckpointId: null,
+    updatedAt: now,
+  });
+
+  edges.push({
+    id: makeNodeId('edge'),
+    scopeId,
+    sourceNodeId: phase1ExitId,
+    targetNodeId: p1CkptId,
+    kind: 'dep',
+    label: 'anchor',
+    conditionExpr: null,
+  });
+
   // Phase 2 dynamic slices + decision routing + optional security gate + Join
   const p2DecisionId = makeNodeId('p2d1');
   const p2StandardId = makeNodeId('p2std');
@@ -564,11 +627,14 @@ export function planCustomizableTwinGraph(input: {
     : null;
   const p2JoinId = makeNodeId('p2join');
 
+  const p2Row1Y = p2Top + 58;
+  const p2Row2Y = p2Top + 190;
+  const p2Row3Y = p2Top + 322;
+
   const sliceNodeIds: string[] = [];
   slices.forEach((slice, index) => {
     const nodeId = makeNodeId(`p2t${index + 1}`);
     sliceNodeIds.push(nodeId);
-    const colY = 82 + index * 94;
     const assignedCap =
       slice.assignedRole === 'evaluator' ? evalCap : workerCap;
     nodes.push({
@@ -592,7 +658,7 @@ export function planCustomizableTwinGraph(input: {
         slice.requirementRefs.length > 0
           ? slice.requirementRefs
           : [allReqCodes[0]!],
-      inputContract: 'Verified Shared Contracts',
+      inputContract: 'Phase 1 Git Baseline SHA',
       outputContract: `${slice.title} Diff`,
       fileScope: slice.fileScope,
       gateCommand: null,
@@ -601,10 +667,10 @@ export function planCustomizableTwinGraph(input: {
       attemptCount: 0,
       maxAttempts: 3,
       collapsed: false,
-      positionX: 374,
-      positionY: colY,
-      width: 224,
-      height: 78,
+      positionX: 64 + index * 272,
+      positionY: p2Row1Y,
+      width: 212,
+      height: 76,
       outputSummary: '',
       restoreTargetCheckpointId: null,
       updatedAt: now,
@@ -612,7 +678,7 @@ export function planCustomizableTwinGraph(input: {
     edges.push({
       id: makeNodeId('edge'),
       scopeId,
-      sourceNodeId: phase1ExitId,
+      sourceNodeId: p1CkptId,
       targetNodeId: nodeId,
       kind: 'dep',
       label: `fork-${index + 1}`,
@@ -651,9 +717,9 @@ export function planCustomizableTwinGraph(input: {
       attemptCount: 0,
       maxAttempts: 1,
       collapsed: false,
-      positionX: 626,
-      positionY: 82,
-      width: 150,
+      positionX: 64,
+      positionY: p2Row2Y,
+      width: 212,
       height: 76,
       outputSummary: '',
       restoreTargetCheckpointId: null,
@@ -687,9 +753,9 @@ export function planCustomizableTwinGraph(input: {
       attemptCount: 0,
       maxAttempts: 2,
       collapsed: false,
-      positionX: 626,
-      positionY: 184,
-      width: 150,
+      positionX: 336,
+      positionY: p2Row2Y,
+      width: 212,
       height: 76,
       outputSummary: '',
       restoreTargetCheckpointId: null,
@@ -724,9 +790,9 @@ export function planCustomizableTwinGraph(input: {
       attemptCount: 0,
       maxAttempts: 2,
       collapsed: false,
-      positionX: 626,
-      positionY: 284,
-      width: 150,
+      positionX: 336,
+      positionY: p2Row3Y,
+      width: 212,
       height: 76,
       outputSummary: '',
       restoreTargetCheckpointId: null,
@@ -764,10 +830,10 @@ export function planCustomizableTwinGraph(input: {
       attemptCount: 0,
       maxAttempts: 2,
       collapsed: false,
-      positionX: 800,
-      positionY: 82,
-      width: 132,
-      height: 78,
+      positionX: 608,
+      positionY: p2Row2Y,
+      width: 212,
+      height: 76,
       outputSummary: '',
       restoreTargetCheckpointId: null,
       updatedAt: now,
@@ -803,10 +869,10 @@ export function planCustomizableTwinGraph(input: {
     attemptCount: 0,
     maxAttempts: 1,
     collapsed: false,
-    positionX: 800,
-    positionY: p2SecurityId ? 204 : 184,
-    width: 132,
-    height: 78,
+    positionX: 608,
+    positionY: p2Row3Y,
+    width: 212,
+    height: 76,
     outputSummary: '',
     restoreTargetCheckpointId: null,
     updatedAt: now,
@@ -885,6 +951,55 @@ export function planCustomizableTwinGraph(input: {
     });
   }
 
+  // Explicit Inter-Phase Checkpoint 2 (between Phase 2 & Phase 3)
+  nodes.push({
+    id: p2CkptId,
+    scopeId,
+    code: 'P2.CKPT',
+    parentWbsId: null,
+    containerNodeId: null,
+    phaseId: null,
+    phaseTitle: 'Phase 2 -> Phase 3 Physical Checkpoint',
+    depth: 1,
+    kind: 'checkpoint',
+    executorKind: 'control',
+    capabilityId: controlCap,
+    assignedRole: 'evaluator',
+    assignedModel: null,
+    title: 'Phase 2 集成物理检查点',
+    description:
+      'Commit integrated Phase 2 parallel worker diffs into a clean Git checkpoint prior to Phase 3 verification.',
+    planningRationale:
+      'Separates worker implementation state from Phase 3 shell gates and rewind boundaries.',
+    requirementRefs: allReqCodes,
+    inputContract: 'Unified Ready-to-Verify Snapshot',
+    outputContract: 'Phase 2 Integrated Git Commit SHA',
+    fileScope: [],
+    gateCommand: null,
+    branchCondition: null,
+    status: 'pending',
+    attemptCount: 0,
+    maxAttempts: 1,
+    collapsed: false,
+    positionX: 336,
+    positionY: p2CkptY,
+    width: 212,
+    height: 68,
+    outputSummary: '',
+    restoreTargetCheckpointId: null,
+    updatedAt: now,
+  });
+
+  edges.push({
+    id: makeNodeId('edge'),
+    scopeId,
+    sourceNodeId: p2JoinId,
+    targetNodeId: p2CkptId,
+    kind: 'dep',
+    label: 'checkpoint',
+    conditionExpr: null,
+  });
+
   // Phase 3 Verification, Audit & Recovery Loop
   const gateId = makeNodeId('p3gate');
   const selfcheckId = makeNodeId('p3sc');
@@ -892,6 +1007,9 @@ export function planCustomizableTwinGraph(input: {
   const ckptId = makeNodeId('p3ckpt');
   const restoreId = makeNodeId('p3rst');
   const doneId = makeNodeId('p3done');
+
+  const p3Row1Y = p3Top + 58;
+  const p3Row2Y = p3Top + 194;
 
   nodes.push(
     {
@@ -913,7 +1031,7 @@ export function planCustomizableTwinGraph(input: {
       planningRationale:
         'Objective exit-code gate prevents self-grading before QA review.',
       requirementRefs: allAcCodes,
-      inputContract: 'Unified Ready-to-Verify Snapshot',
+      inputContract: 'Phase 2 Integrated Git Commit SHA',
       outputContract: 'Gate Exit Code & Logs',
       fileScope: [],
       gateCommand: verifyCommand,
@@ -922,9 +1040,9 @@ export function planCustomizableTwinGraph(input: {
       attemptCount: 0,
       maxAttempts: 2,
       collapsed: false,
-      positionX: 1016,
-      positionY: 82,
-      width: 210,
+      positionX: 64,
+      positionY: p3Row1Y,
+      width: 212,
       height: 74,
       outputSummary: '',
       restoreTargetCheckpointId: null,
@@ -959,10 +1077,10 @@ export function planCustomizableTwinGraph(input: {
       attemptCount: 0,
       maxAttempts: 2,
       collapsed: false,
-      positionX: 1016,
-      positionY: 184,
-      width: 210,
-      height: 70,
+      positionX: 336,
+      positionY: p3Row1Y,
+      width: 212,
+      height: 74,
       outputSummary: '',
       restoreTargetCheckpointId: null,
       updatedAt: now,
@@ -999,9 +1117,9 @@ export function planCustomizableTwinGraph(input: {
       attemptCount: 0,
       maxAttempts: 3,
       collapsed: false,
-      positionX: 1258,
-      positionY: 184,
-      width: 210,
+      positionX: 608,
+      positionY: p3Row1Y,
+      width: 212,
       height: 74,
       outputSummary: '',
       restoreTargetCheckpointId: null,
@@ -1038,10 +1156,10 @@ export function planCustomizableTwinGraph(input: {
       attemptCount: 0,
       maxAttempts: 1,
       collapsed: false,
-      positionX: 1258,
-      positionY: 82,
-      width: 210,
-      height: 70,
+      positionX: 336,
+      positionY: p3Row2Y,
+      width: 212,
+      height: 74,
       outputSummary: '',
       restoreTargetCheckpointId: null,
       updatedAt: now,
@@ -1075,9 +1193,9 @@ export function planCustomizableTwinGraph(input: {
       attemptCount: 0,
       maxAttempts: 3,
       collapsed: false,
-      positionX: 1016,
-      positionY: 284,
-      width: 210,
+      positionX: 64,
+      positionY: p3Row2Y,
+      width: 212,
       height: 74,
       outputSummary: '',
       restoreTargetCheckpointId: null,
@@ -1110,9 +1228,9 @@ export function planCustomizableTwinGraph(input: {
       attemptCount: 0,
       maxAttempts: 1,
       collapsed: false,
-      positionX: 1258,
-      positionY: 284,
-      width: 210,
+      positionX: 608,
+      positionY: p3Row2Y,
+      width: 212,
       height: 74,
       outputSummary: '',
       restoreTargetCheckpointId: null,
@@ -1124,7 +1242,7 @@ export function planCustomizableTwinGraph(input: {
     {
       id: makeNodeId('edge'),
       scopeId,
-      sourceNodeId: p2JoinId,
+      sourceNodeId: p2CkptId,
       targetNodeId: gateId,
       kind: 'dep',
       label: 'verify',
@@ -1145,7 +1263,7 @@ export function planCustomizableTwinGraph(input: {
       sourceNodeId: gateId,
       targetNodeId: restoreId,
       kind: 'fail',
-      label: 'fail',
+      label: 'gate fail',
       conditionExpr: null,
     },
     ...(qaId
@@ -1174,7 +1292,7 @@ export function planCustomizableTwinGraph(input: {
             sourceNodeId: qaId,
             targetNodeId: restoreId,
             kind: 'fail' as const,
-            label: 'fail',
+            label: 'qa fail',
             conditionExpr: null,
           },
         ]

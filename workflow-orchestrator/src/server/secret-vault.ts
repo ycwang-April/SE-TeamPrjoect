@@ -3,7 +3,8 @@
  */
 
 import {existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs';
-import {dirname} from 'node:path';
+import {homedir} from 'node:os';
+import {dirname, join} from 'node:path';
 import type {ProviderSecretResolved} from '../adapters/contracts.ts';
 import type {OrchestratorStore} from '../store/database.ts';
 
@@ -11,7 +12,10 @@ interface VaultDiskPayload {
   readonly keys: Record<string, string>;
 }
 
+const CLEARED_SENTINEL = '__CLEARED__';
+
 const ENV_FALLBACK: Readonly<Record<string, string>> = {
+  'opencode-go': 'OPENCODE_API_KEY',
   deepseek: 'DEEPSEEK_API_KEY',
   openai: 'OPENAI_API_KEY',
   anthropic: 'ANTHROPIC_API_KEY',
@@ -54,7 +58,11 @@ export class HostSecretVault {
   setApiKey(providerId: string, rawKey: string): void {
     const trimmed = rawKey.trim();
     if (!trimmed) {
-      delete this.keys[providerId];
+      if (providerId === 'opencode-go') {
+        this.keys[providerId] = CLEARED_SENTINEL;
+      } else {
+        delete this.keys[providerId];
+      }
     } else {
       this.keys[providerId] = trimmed;
     }
@@ -77,12 +85,42 @@ export class HostSecretVault {
 
   getRawApiKey(providerId: string): string | null {
     const explicit = this.keys[providerId];
+    if (explicit === CLEARED_SENTINEL) {
+      return null;
+    }
     if (explicit?.trim()) {
-      return explicit;
+      return explicit.trim();
     }
     const envVar = ENV_FALLBACK[providerId];
-    if (envVar && process.env[envVar]) {
-      return process.env[envVar] ?? null;
+    if (envVar && process.env[envVar]?.trim()) {
+      return process.env[envVar]!.trim();
+    }
+    if (
+      providerId === 'opencode-go' &&
+      process.env['ORCH_OFFLINE_VERIFY'] !== '1'
+    ) {
+      try {
+        const authPath = join(
+          homedir(),
+          '.local',
+          'share',
+          'opencode',
+          'auth.json',
+        );
+        if (existsSync(authPath)) {
+          const parsed = JSON.parse(readFileSync(authPath, 'utf8')) as Record<
+            string,
+            unknown
+          >;
+          const entry = parsed['opencode-go'] as
+            {readonly key?: unknown} | undefined;
+          if (typeof entry?.key === 'string' && entry.key.trim().length > 0) {
+            return entry.key.trim();
+          }
+        }
+      } catch {
+        // Ignore malformed or unreadable OpenCode auth file
+      }
     }
     return null;
   }

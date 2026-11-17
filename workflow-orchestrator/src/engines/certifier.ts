@@ -110,7 +110,14 @@ export class ExecutionCertifier {
     const cap =
       this.store.listCapabilities().find(c => c.id === node.capabilityId) ??
       this.store.listCapabilities().find(c => c.id === 'native-api')!;
-    const model = node.assignedModel || cap.defaultModel;
+    const model =
+      node.assignedModel ||
+      (cap.id === 'native-api' &&
+      (!cap.defaultModel ||
+        cap.defaultModel === 'default' ||
+        cap.defaultModel === 'deepseek-chat')
+        ? 'deepseek-v4.1-flash'
+        : cap.defaultModel);
     const diff = await this.worktrees.diffSinceCommit(
       run.worktreePath,
       run.baseCommitSha,
@@ -124,12 +131,15 @@ export class ExecutionCertifier {
       role: 'evaluator',
     });
 
+    const patchExcerpt = diff.patch.trim()
+      ? `\nDiff Excerpt:\n${diff.patch.slice(0, 3500)}`
+      : '';
     const prompt = [
       `Goal: ${goalSpec.goal}`,
       `Acceptance Criteria: ${goalSpec.acceptanceCriteria.map(a => `${a.code}: ${a.label}`).join('; ')}`,
       `Diff Stat: ${diff.summary}`,
-      `Changed Files: ${diff.changedFiles.join(', ') || '(none)'}`,
-      'Respond with JSON: {"passed": boolean, "score": number, "findings": string[]}',
+      `Changed Files: ${diff.changedFiles.join(', ') || '(none)'}${patchExcerpt}`,
+      'Respond strictly with valid JSON only: {"passed": boolean, "score": number, "findings": string[]}',
     ].join('\n');
 
     this.store.appendSessionMessage({
@@ -149,7 +159,7 @@ export class ExecutionCertifier {
       permissionTier: run.permissionTier,
       cwd: run.worktreePath,
       systemPrompt:
-        'You are an independent QA Auditor. Grade deliverables strictly and return JSON.',
+        'You are an independent QA Auditor. Grade the Diff Excerpt and Changed Files strictly against Acceptance Criteria (use read_file/list_dir only if the diff excerpt is insufficient). Respond concisely with ONLY valid JSON: {"passed": boolean, "score": number, "findings": string[]}.',
       userPrompt: prompt,
       fileScope: [],
       readOnly: true,

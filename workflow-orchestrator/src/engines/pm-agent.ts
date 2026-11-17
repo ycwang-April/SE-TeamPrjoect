@@ -8,6 +8,7 @@
 
 import {randomUUID} from 'node:crypto';
 import type {ProviderSecretLookup} from '../adapters/contracts.ts';
+import {postJsonWithOptionalProxy} from '../adapters/native-api.ts';
 import {
   buildStructuralPmSlices,
   resolveWorkflowCustomization,
@@ -104,7 +105,10 @@ export class PmAgentDecomposer {
       hasApiKey: false,
       maskedKeyHint: '',
     }));
-    const activeProvider = providers
+    const orderedProviders = [...providers].sort((a, b) =>
+      a.id === 'opencode-go' ? -1 : b.id === 'opencode-go' ? 1 : 0,
+    );
+    const activeProvider = orderedProviders
       .map(p => this.resolveProvider!(p.id))
       .find(p => p && p.apiKey && p.apiKey.trim().length > 0);
 
@@ -112,6 +116,8 @@ export class PmAgentDecomposer {
       return baseline;
     }
 
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15_000);
     try {
       const skillsText = this.store
         .listSkills()
@@ -137,53 +143,67 @@ export class PmAgentDecomposer {
       const url = isAnthropic
         ? `${activeProvider.baseUrl.replace(/\/$/, '')}/messages`
         : `${activeProvider.baseUrl.replace(/\/$/, '')}/chat/completions`;
-      const providerRow = providers.find(
+      const providerRow = orderedProviders.find(
         p => p.id === activeProvider.providerId,
       );
-      const modelId = providerRow?.models[0]?.id ?? 'gpt-4o-mini';
+      const modelId =
+        providerRow?.models[0]?.id ??
+        (activeProvider.providerId === 'opencode-go'
+          ? 'deepseek-v4.1-flash'
+          : 'gpt-4o-mini');
 
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 12_000);
-      const res = await fetch(url, {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          ...(isAnthropic
-            ? {
-                'x-api-key': activeProvider.apiKey,
-                'anthropic-version': '2023-06-01',
-              }
-            : {Authorization: `Bearer ${activeProvider.apiKey}`}),
-        },
-        body: JSON.stringify(
-          isAnthropic
-            ? {
-                model: modelId,
-                max_tokens: 900,
-                messages: [{role: 'user', content: userPrompt}],
-              }
-            : {
-                model: modelId,
-                temperature: 0.2,
-                messages: [
-                  {
-                    role: 'system',
-                    content:
-                      'You are a Principal Software Engineering PM Agent. Output valid JSON only.',
-                  },
-                  {role: 'user', content: userPrompt},
-                ],
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(isAnthropic
+          ? {
+              'x-api-key': activeProvider.apiKey,
+              'anthropic-version': '2023-06-01',
+            }
+          : {Authorization: `Bearer ${activeProvider.apiKey}`}),
+      };
+      if (activeProvider.providerId === 'opencode-go') {
+        headers['x-opencode-session'] = `ses-pm-${input.workflowId}`;
+      }
+
+      const lowerModel = modelId.toLowerCase();
+      const useLowReasoning =
+        lowerModel.includes('deepseek-v4') ||
+        lowerModel.includes('dsv4') ||
+        lowerModel.includes('flash');
+
+      const bodyPayload = isAnthropic
+        ? {
+            model: modelId,
+            max_tokens: 2048,
+            messages: [{role: 'user', content: userPrompt}],
+          }
+        : {
+            model: modelId,
+            max_tokens: 2048,
+            temperature: 0.2,
+            ...(useLowReasoning ? {reasoning_effort: 'low'} : {}),
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'You are a Principal Software Engineering PM Agent. Output valid JSON only.',
               },
-        ),
-      });
-      clearTimeout(timer);
+              {role: 'user', content: userPrompt},
+            ],
+          };
+
+      const res = await postJsonWithOptionalProxy(
+        url,
+        headers,
+        bodyPayload,
+        controller.signal,
+      );
 
       if (!res.ok) {
         return baseline;
       }
 
-      const data = (await res.json()) as Record<string, unknown>;
+      const data = res.json() as Record<string, unknown>;
       const rawText = extractLlmText(data, isAnthropic);
       const jsonMatch = /\{[\s\S]*\}/.exec(rawText);
       if (!jsonMatch) {
@@ -248,6 +268,8 @@ export class PmAgentDecomposer {
       };
     } catch {
       return baseline;
+    } finally {
+      clearTimeout(timer);
     }
   }
 }
@@ -267,9 +289,14 @@ function extractLlmText(
   }
   const choices = data['choices'];
   if (Array.isArray(choices) && choices[0]) {
-    const msg = (choices[0] as {message?: {content?: unknown}}).message;
-    if (typeof msg?.content === 'string') {
+    const msg = (
+      choices[0] as {message?: {content?: unknown; reasoning_content?: unknown}}
+    ).message;
+    if (typeof msg?.content === 'string' && msg.content.trim()) {
       return msg.content;
+    }
+    if (typeof msg?.reasoning_content === 'string') {
+      return msg.reasoning_content;
     }
   }
   return '';

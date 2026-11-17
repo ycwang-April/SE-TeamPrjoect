@@ -15,7 +15,7 @@ import {
 } from '../core/spec-parser.ts';
 import {computeCapabilityHealthProfile} from '../core/telemetry.ts';
 import {validateWorkflowSpec} from '../core/validator.ts';
-import type {EvidenceSearchHit} from '../shared/api.ts';
+import type {EvidenceSearchHit, RunLiveLogEntry} from '../shared/api.ts';
 import {OrchestratorError} from '../shared/errors.ts';
 import type {
   AgentRole,
@@ -184,12 +184,42 @@ export class OrchestratorStore {
       );
     }
 
-    const insertProvider = this.db.prepare(
-      `INSERT OR IGNORE INTO model_providers (id, name, protocol, base_url, models_json, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+    const nativeCapRow = this.db
+      .prepare('SELECT manifest_json FROM capabilities WHERE id = ?')
+      .get('native-api') as {manifest_json: string} | undefined;
+    if (nativeCapRow) {
+      const parsedCap = parseJson<Record<string, unknown>>(
+        nativeCapRow.manifest_json,
+        {},
+      );
+      if (parsedCap['defaultModel'] === 'deepseek-chat') {
+        this.db
+          .prepare(
+            'UPDATE capabilities SET manifest_json = ?, updated_at = ? WHERE id = ?',
+          )
+          .run(
+            JSON.stringify({
+              ...parsedCap,
+              defaultModel: 'deepseek-v4.1-flash',
+            }),
+            now,
+            'native-api',
+          );
+      }
+    }
+
+    const upsertProvider = this.db.prepare(
+      `INSERT INTO model_providers (id, name, protocol, base_url, models_json, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         name = excluded.name,
+         protocol = excluded.protocol,
+         base_url = excluded.base_url,
+         models_json = excluded.models_json,
+         updated_at = excluded.updated_at`,
     );
     for (const p of DEFAULT_MODEL_PROVIDERS) {
-      insertProvider.run(
+      upsertProvider.run(
         p.id,
         p.name,
         p.protocol,
@@ -288,13 +318,14 @@ export class OrchestratorStore {
   seedSampleWorkflowIfEmpty(sampleWorkspacePath: string): void {
     const existing = this.listWorkspaces();
     if (existing.length > 0) {
+      this.refreshLegacySampleWorkflowIfNeeded();
       return;
     }
     const ws = this.createWorkspace({
       name: 'Sample Ledger Workspace',
       rootPath: sampleWorkspacePath,
       defaultBranch: 'main',
-      verifyCommand: 'echo Verification gate passed',
+      verifyCommand: 'node -e "console.log(\\"Verification gate passed\\")"',
       description:
         'Pre-seeded sample Git workspace for exploring Requirements-to-Execution workflow orchestration.',
     });
@@ -359,6 +390,57 @@ export class OrchestratorStore {
         detail: `Generated ${planned.nodes.length} Twin-Graph nodes covering ${goalSpec.requirements.length} requirements.`,
       });
     });
+  }
+
+  private refreshLegacySampleWorkflowIfNeeded(): void {
+    const wf001 = this.listWorkflows().find(w => w.code === 'WF-001');
+    if (!wf001) {
+      return;
+    }
+    const draftNodes = this.listGraphNodes(wf001.id);
+    const hasP1Ckpt = draftNodes.some(n => n.code === 'P1.CKPT');
+    const hasSucceededRun = this.listRuns(wf001.id).some(
+      r => r.status === 'succeeded',
+    );
+    if ((wf001.status !== 'locked' || !hasSucceededRun) && !hasP1Ckpt) {
+      try {
+        const goalSpec = this.getGoalSpec(wf001.id);
+        const caps = this.listCapabilities();
+        const health = this.listCapabilityHealth();
+        const domainTerms = this.listDomainTerms(wf001.workspaceId);
+        const planned = planTwinGraphFromGoalSpec({
+          scopeId: wf001.id,
+          goalSpec,
+          capabilities: caps,
+          healthProfiles: health,
+          permissionTier: wf001.permissionTier,
+          verifyCommand: wf001.verifyCommand,
+          customization: wf001.customization,
+          domainTerms,
+        });
+        const validation = validateWorkflowSpec({
+          workflowId: wf001.id,
+          goalSpec,
+          nodes: planned.nodes,
+          edges: planned.edges,
+          capabilities: caps,
+          healthProfiles: health,
+          permissionTier: wf001.permissionTier,
+          maxReworkIterations: wf001.maxReworkIterations,
+          domainTerms,
+          dddStrictCheck: wf001.customization?.dddStrictCheck ?? true,
+        });
+        this.savepoint(() => {
+          this.replaceGraph(wf001.id, planned.nodes, planned.edges);
+          this.saveValidationReport(validation);
+          this.updateWorkflowMeta(wf001.id, {
+            status: validation.valid ? 'validated' : 'draft',
+          });
+        });
+      } catch {
+        // Ignore if GoalSpec does not exist for partial/custom DB
+      }
+    }
   }
 
   // ---- Workspaces ----
@@ -1463,7 +1545,16 @@ export class OrchestratorStore {
     },
   ): ModelProviderConfig[] {
     const rows = this.db
-      .prepare('SELECT * FROM model_providers ORDER BY id ASC')
+      .prepare(
+        `SELECT * FROM model_providers
+         ORDER BY CASE id
+           WHEN 'opencode-go' THEN 0
+           WHEN 'deepseek' THEN 1
+           WHEN 'openai' THEN 2
+           WHEN 'anthropic' THEN 3
+           ELSE 4
+         END, id ASC`,
+      )
       .all() as Record<string, unknown>[];
     return rows.map(r => {
       const id = String(r['id']);
@@ -1710,6 +1801,97 @@ export class OrchestratorStore {
       detail: String(r['detail']),
       createdAt: String(r['created_at']),
     }));
+  }
+
+  listRunLiveLogs(runId: string, limit = 80): RunLiveLogEntry[] {
+    const safeLimit = Math.max(1, Math.min(500, Math.floor(limit)));
+    const msgRows = this.db
+      .prepare(
+        `SELECT m.id, m.seq, m.role, m.tool_name, m.content, m.created_at,
+                s.capability_id, COALESCE(n.code, s.role) AS node_code
+         FROM session_messages m
+         JOIN sessions s ON s.id = m.session_id
+         LEFT JOIN graph_nodes n ON n.id = s.node_id
+         WHERE s.run_id = ?
+         ORDER BY m.created_at DESC, m.seq DESC
+         LIMIT ?`,
+      )
+      .all(runId, safeLimit) as Record<string, unknown>[];
+
+    const auditRows = this.db
+      .prepare(
+        `SELECT id, category, author, title, detail, created_at
+         FROM audit_ledger
+         WHERE run_id = ?
+         ORDER BY created_at DESC
+         LIMIT ?`,
+      )
+      .all(runId, safeLimit) as Record<string, unknown>[];
+
+    const combined: {
+      readonly entry: RunLiveLogEntry;
+      readonly kindOrder: number;
+      readonly seq: number;
+    }[] = [];
+
+    for (const r of msgRows) {
+      const rawRole = String(r['role'] ?? 'system');
+      const role: RunLiveLogEntry['role'] =
+        rawRole === 'user' ||
+        rawRole === 'assistant' ||
+        rawRole === 'tool' ||
+        rawRole === 'system'
+          ? rawRole
+          : 'system';
+      combined.push({
+        entry: {
+          id: String(r['id']),
+          nodeCode: String(r['node_code'] ?? 'RUN'),
+          capabilityId: String(r['capability_id'] ?? 'native-api'),
+          role,
+          toolName: r['tool_name'] ? String(r['tool_name']) : null,
+          content: String(r['content'] ?? ''),
+          createdAt: String(r['created_at']),
+        },
+        kindOrder: 0,
+        seq: Number(r['seq'] ?? 0),
+      });
+    }
+
+    for (const r of auditRows) {
+      const title = String(r['title'] ?? '');
+      const detail = String(r['detail'] ?? '');
+      const codeMatch = /\b(START|DONE|P\d+\.[A-Z0-9_]+|GHOST\.\d+)\b/.exec(
+        title,
+      );
+      const category = String(r['category'] ?? 'audit');
+      combined.push({
+        entry: {
+          id: String(r['id']),
+          nodeCode: codeMatch?.[1] ?? category.toUpperCase(),
+          capabilityId: category,
+          role: 'audit',
+          toolName: null,
+          content: detail ? `${title} — ${detail}` : title,
+          createdAt: String(r['created_at']),
+        },
+        kindOrder: 1,
+        seq: 0,
+      });
+    }
+
+    combined.sort((a, b) => {
+      const timeCmp = a.entry.createdAt.localeCompare(b.entry.createdAt);
+      if (timeCmp !== 0) {
+        return timeCmp;
+      }
+      if (a.kindOrder !== b.kindOrder) {
+        return a.kindOrder - b.kindOrder;
+      }
+      return a.seq - b.seq;
+    });
+
+    return combined.slice(-safeLimit).map(item => item.entry);
   }
 
   searchEvidence(rawQuery: string, limit = 30): EvidenceSearchHit[] {
