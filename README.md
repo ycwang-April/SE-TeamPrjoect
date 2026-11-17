@@ -2,6 +2,10 @@
 
 Software Engineering team project repository.
 
+## 需求工程子系统
+
+[HAMA-Loop](./requirements-engineering/README.md) 在现有工作台中提供原始 Idea、多智能体讨论、独立评价、人工审批、PRD 与基线确认，并向后续编排交接已批准的需求基线。
+
 ## Implemented Subsystem: [`workflow-orchestrator/`](./workflow-orchestrator/README.md)
 
 This folder implements the **Requirements-to-Execution Real-Time Workflow Orchestration Subsystem** — starting strictly from receiving a confirmed Requirements Document / PRD and carrying the pipeline end-to-end through:

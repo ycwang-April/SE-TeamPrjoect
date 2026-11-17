@@ -1,4 +1,7 @@
 import type {
+  ApprovedRequirementsBaseline, DecisionInput, RunSummary, RunView, StartInput,
+} from '../../../../requirements-engineering/src/contracts.ts';
+import type {
   BootstrapSnapshot,
   ConfirmVersionRequest,
   EvidenceSearchHit,
@@ -107,6 +110,15 @@ async function apiFetch<T>(
 
 export const orchApi = {
   getBootstrap: () => apiFetch<BootstrapSnapshot>('/api/bootstrap'),
+  hamaRuns: () => apiFetch<RunSummary[]>('/api/hama/runs'),
+  hamaRun: (id: string) => apiFetch<RunView>(`/api/hama/runs/${id}`),
+  startHamaRun: (body: StartInput) => apiFetch<RunView>('/api/hama/runs', {method: 'POST', body}),
+  decideHamaGate: (run: string, gate: string, body: DecisionInput) =>
+    apiFetch<RunView>(`/api/hama/runs/${run}/gates/${gate}`, {method: 'POST', body}),
+  hamaBaselines: (project: string) => apiFetch<ApprovedRequirementsBaseline[]>(
+    `/api/hama/baselines?projectId=${encodeURIComponent(project)}`),
+  importHamaBaseline: (body: {workspaceId: string; baselineId: string}) =>
+    apiFetch<WorkflowDetailSnapshot>('/api/workflows/import-requirements', {method: 'POST', body}),
 
   createWorkspace: (body: {
     readonly name: string;

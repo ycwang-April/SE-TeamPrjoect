@@ -10,6 +10,8 @@
  */
 
 import {randomUUID} from 'node:crypto';
+import {mkdirSync} from 'node:fs';
+import {join} from 'node:path';
 import {buildRehydrationCapsule} from '../core/cognitive.ts';
 import {renderUbiquitousLanguageSection} from '../core/ddd.ts';
 import {
@@ -34,6 +36,7 @@ import type {
 } from '../shared/types.ts';
 import type {OrchestratorStore} from '../store/database.ts';
 import type {ExecutionCertifier} from './certifier.ts';
+import type {WorkflowHandler, WorkflowStepContext, WorkflowStepResult} from './workflow-handler.ts';
 
 export class WorkflowOrchestratorEngine {
   private readonly store: OrchestratorStore;
@@ -61,6 +64,9 @@ export class WorkflowOrchestratorEngine {
 
   private readonly activeAbortByRun = new Map<string, AbortController>();
   private readonly activeTaskCountByRun = new Map<string, number>();
+  private readonly handlers: WorkflowHandler[] = [];
+  private stopping = false;
+  private readonly tasks = new Set<Promise<void>>();
 
   constructor(input: {
     readonly store: OrchestratorStore;
@@ -94,14 +100,37 @@ export class WorkflowOrchestratorEngine {
     this.broadcast = input.broadcast;
   }
 
-  async startRun(req: StartRunRequest): Promise<RunDetailSnapshot> {
+  registerHandler(handler: WorkflowHandler): void {
+    this.handlers.push(handler);
+  }
+
+  hasHandler(workflowId: string): boolean {
+    return this.handler(workflowId) !== undefined;
+  }
+
+  private handler(workflowId: string): WorkflowHandler | undefined {
+    return this.handlers.find(handler => handler.matches(workflowId));
+  }
+
+  private requireNativeRun(workflowId: string): void {
+    if (this.hasHandler(workflowId)) {
+      throw new OrchestratorError('POLICY_DENIED', 'Use the registered workflow controls.', 403);
+    }
+  }
+
+  async startRun(
+    req: StartRunRequest,
+    initialize?: (run: WorkflowRunRecord) => void,
+  ): Promise<RunDetailSnapshot> {
     const wf = this.store.getWorkflow(req.workflowId);
+    const registered = this.hasHandler(wf.id);
+    if (registered && !initialize) this.requireNativeRun(wf.id);
     const versions = this.store.listVersions(wf.id);
     const version = req.versionId
       ? this.store.getVersion(req.versionId)
       : versions[0];
 
-    if (!version) {
+    if (!version || version.workflowId !== wf.id) {
       throw new OrchestratorError(
         'SPEC_INVALID',
         'No locked version snapshot exists yet. Run Validation & Lock Version before executing.',
@@ -113,13 +142,17 @@ export class WorkflowOrchestratorEngine {
     const runId = `run-${randomUUID().slice(0, 8)}`;
     const now = new Date().toISOString();
 
-    const wt = await this.worktrees.provisionWorktree({
-      repoPath: workspace.rootPath,
-      worktreesRoot: this.worktreesRoot,
-      repoId: workspace.id,
-      runCode: runId,
-      baseRef: workspace.defaultBranch,
-    });
+    const documentPath = join(this.worktreesRoot, '..', 'document-runs', runId);
+    if (registered) mkdirSync(documentPath, {recursive: true});
+    const wt = registered
+      ? {worktreePath: documentPath, branchName: '', baseCommitSha: ''}
+      : await this.worktrees.provisionWorktree({
+          repoPath: workspace.rootPath,
+          worktreesRoot: this.worktreesRoot,
+          repoId: workspace.id,
+          runCode: runId,
+          baseRef: workspace.defaultBranch,
+        });
 
     const execNodes = version.nodes.filter(n => n.kind !== 'phase_container');
     const runRecord: WorkflowRunRecord = {
@@ -188,7 +221,8 @@ export class WorkflowOrchestratorEngine {
     this.store.savepoint(() => {
       this.store.createRun(runRecord);
       this.store.replaceGraph(runId, remappedNodes, remappedEdges);
-      this.store.createCheckpoint({
+      initialize?.(runRecord);
+      if (!registered) this.store.createCheckpoint({
         id: `cp-${randomUUID().slice(0, 8)}`,
         runId,
         nodeId: remappedNodes.find(n => n.kind === 'start')?.id ?? runId,
@@ -283,6 +317,12 @@ export class WorkflowOrchestratorEngine {
 
   cancelRun(runId: string): RunDetailSnapshot {
     const run = this.store.getRun(runId);
+    if (this.hasHandler(run.workflowId)) {
+      if (['succeeded', 'cancelled'].includes(run.status)) return this.getRunDetail(runId);
+      if (this.store.listInterventions(runId).some(i => i.status === 'open')) {
+        throw new OrchestratorError('CONFLICT', 'Resolve the open version-bound decision to end this run.', 409);
+      }
+    }
     this.activeAbortByRun.get(runId)?.abort();
     this.activeAbortByRun.delete(runId);
     this.store.updateRun(runId, {
@@ -302,6 +342,10 @@ export class WorkflowOrchestratorEngine {
     const node = this.store.listGraphNodes(runId).find(n => n.id === nodeId);
     if (!node) {
       throw new OrchestratorError('NOT_FOUND', `Node ${nodeId} not found`, 404);
+    }
+    if (this.hasHandler(run.workflowId) &&
+        (run.status !== 'failed' || node.status !== 'failed')) {
+      throw new OrchestratorError('CONFLICT', 'Only a failed execution step may be retried.', 409);
     }
     this.store.updateNodeState(node.id, {status: 'pending'});
     this.store.updateRun(runId, {status: 'running', finishedAt: null});
@@ -326,6 +370,10 @@ export class WorkflowOrchestratorEngine {
     interventionId: string,
     req: ResolveInterventionRequest,
   ): RunDetailSnapshot {
+    // A closed registered intervention must also be ineligible for the legacy resolver.
+    const owner = this.store.db.prepare('SELECT run_id FROM interventions WHERE id = ?')
+      .get(interventionId);
+    if (owner) this.requireNativeRun(this.store.getRun(String(owner['run_id'])).workflowId);
     const action = req.action ?? 'approve';
     const item = this.store.resolveIntervention(
       interventionId,
@@ -378,6 +426,7 @@ export class WorkflowOrchestratorEngine {
     req: ProposeGhostNodeRequest,
   ): RunDetailSnapshot {
     const run = this.store.getRun(runId);
+    this.requireNativeRun(run.workflowId);
     const nodes = this.store.listGraphNodes(runId);
     const edges = this.store.listGraphEdges(runId);
     const now = new Date().toISOString();
@@ -452,6 +501,7 @@ export class WorkflowOrchestratorEngine {
     checkpointId: string,
   ): Promise<RunDetailSnapshot> {
     const run = this.store.getRun(runId);
+    this.requireNativeRun(run.workflowId);
     const cp = this.store
       .listCheckpoints(runId)
       .find(c => c.id === checkpointId);
@@ -537,6 +587,7 @@ export class WorkflowOrchestratorEngine {
   }
 
   schedulePump(runId: string): void {
+    if (this.stopping) return;
     const run = this.store.getRun(runId);
     if (run.status !== 'running') {
       return;
@@ -659,7 +710,8 @@ export class WorkflowOrchestratorEngine {
         runId,
         (this.activeTaskCountByRun.get(runId) ?? 0) + 1,
       );
-      void this.executeNode(runId, node, controller.signal).finally(() => {
+      const task = this.executeNode(runId, node, controller.signal).finally(() => {
+        this.tasks.delete(task);
         const nextCount = Math.max(
           0,
           (this.activeTaskCountByRun.get(runId) ?? 1) - 1,
@@ -670,6 +722,7 @@ export class WorkflowOrchestratorEngine {
           this.schedulePump(runId);
         }
       });
+      this.tasks.add(task);
     }
   }
 
@@ -710,6 +763,18 @@ export class WorkflowOrchestratorEngine {
     try {
       if (signal.aborted || this.store.getRun(runId).status !== 'running') {
         this.store.updateNodeState(node.id, {status: 'pending'});
+        return;
+      }
+
+      const handler = this.handler(run.workflowId);
+      if (handler?.handles(node)) {
+        const context = {run, node, attemptId};
+        const result = await handler.execute(context, signal);
+        if (this.isCurrentRegisteredAttempt(context, signal)) {
+          this.store.savepoint(() => this.finishRegisteredStep(context, result, startedAt));
+        } else {
+          this.markInterrupted(attemptId);
+        }
         return;
       }
 
@@ -1110,6 +1175,11 @@ export class WorkflowOrchestratorEngine {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      if (this.hasHandler(run.workflowId) &&
+          !this.isCurrentRegisteredAttempt({run, node, attemptId}, signal)) {
+        this.markInterrupted(attemptId);
+        return;
+      }
       if (signal.aborted || this.store.getRun(runId).status === 'paused') {
         this.store.updateNodeState(node.id, {status: 'pending'});
         return;
@@ -1124,6 +1194,111 @@ export class WorkflowOrchestratorEngine {
         msg,
         null,
       );
+    }
+  }
+
+  private isCurrentRegisteredAttempt(context: WorkflowStepContext, signal: AbortSignal): boolean {
+    const {run, node} = context;
+    const status = this.store.getRun(run.id).status;
+    const current = this.store.listGraphNodes(run.id).find(item => item.id === node.id);
+    return !signal.aborted && (status === 'running' || status === 'waiting_human') &&
+      current?.status === 'running' && current.attemptCount === node.attemptCount;
+  }
+
+  private markInterrupted(attemptId: string): void {
+    this.store.db.prepare(`UPDATE node_attempts SET status = 'failed', exit_code = 1,
+      error_message = 'Execution interrupted', finished_at = ? WHERE id = ? AND status = 'running'`)
+      .run(new Date().toISOString(), attemptId);
+  }
+
+  recoverRegisteredRuns(): void {
+    for (const run of this.store.listRuns().filter(run => this.hasHandler(run.workflowId))) {
+      if (!['running', 'paused', 'waiting_human'].includes(run.status)) continue;
+      this.store.savepoint(() => {
+        for (const node of this.store.listGraphNodes(run.id)) {
+          if (node.status === 'running') this.store.updateNodeState(node.id, {status: 'pending'});
+        }
+        const waiting = new Set(this.store.listGraphNodes(run.id)
+          .filter(node => node.status === 'waiting_human').map(node => node.id));
+        for (const attempt of this.store.listAttempts(run.id)) {
+          if (attempt.status === 'running' && !waiting.has(attempt.nodeId)) this.markInterrupted(attempt.id);
+        }
+      });
+      if (run.status === 'running') queueMicrotask(() => this.schedulePump(run.id));
+    }
+  }
+
+  async shutdown(): Promise<void> {
+    this.stopping = true;
+    for (const controller of this.activeAbortByRun.values()) controller.abort();
+    await Promise.allSettled(this.tasks);
+  }
+
+  resolveRegisteredIntervention(runId: string, interventionId: string, input: unknown): RunDetailSnapshot {
+    this.store.savepoint(() => {
+      const run = this.store.getRun(runId);
+      const handler = this.handler(run.workflowId);
+      const item = this.store.listInterventions(runId).find(entry => entry.id === interventionId);
+      const node = this.store.listGraphNodes(runId).find(entry => entry.id === item?.nodeId);
+      const attempt = this.store.listAttempts(runId)
+        .find(entry => entry.nodeId === node?.id && entry.attemptNumber === node?.attemptCount);
+      if (!handler || !item || !node || !attempt) {
+        throw new OrchestratorError('NOT_FOUND', 'Registered intervention not found.', 404);
+      }
+      const context = {run, node, attemptId: attempt.id};
+      const result = handler.resolve(context, interventionId, input);
+      if (!result) return;
+      if (item.status !== 'open' || node.status !== 'waiting_human' ||
+          !['waiting_human', 'paused'].includes(run.status)) {
+        throw new OrchestratorError('CONFLICT', 'The intervention is no longer active.', 409);
+      }
+      this.store.resolveIntervention(item.id, result.summary, result.stop);
+      if (run.status !== 'paused') this.store.updateRun(run.id, {status: 'running'});
+      this.finishRegisteredStep(context, result, attempt.startedAt);
+      this.broadcast('intervention.resolved', {workflowId: run.workflowId, runId, nodeId: node.id},
+        {interventionId});
+    });
+    this.schedulePump(runId);
+    return this.getRunDetail(runId);
+  }
+
+  private finishRegisteredStep(context: WorkflowStepContext, result: WorkflowStepResult, startedAt: string): void {
+    const {run, node, attemptId} = context;
+    const ids = {workflowId: run.workflowId, runId: run.id, nodeId: node.id};
+    result.commit?.();
+    if (result.wait) {
+      const item = this.store.createIntervention({
+        runId: run.id, nodeId: node.id, kind: 'human_gate',
+        question: result.wait.question, contextSnippet: result.wait.contextSnippet,
+        options: result.wait.options,
+      });
+      result.wait.bind(item.id);
+      this.store.updateNodeState(node.id, {status: 'waiting_human', outputSummary: result.summary});
+      if (this.store.getRun(run.id).status !== 'paused') this.store.updateRun(run.id, {status: 'waiting_human'});
+      this.broadcast('intervention.created', ids, {interventionId: item.id, question: item.question});
+      return;
+    }
+    const summary = result.selectedBranch === undefined ? result.summary :
+      JSON.stringify({selectedBranch: result.selectedBranch, summary: result.summary});
+    this.finishNodeSuccess(run.id, run.workflowId, node, attemptId, startedAt, summary, null);
+    if (result.stop) {
+      this.store.updateRun(run.id, {status: 'cancelled', finishedAt: new Date().toISOString()});
+      this.broadcast('run.status', ids, {status: 'cancelled'});
+    }
+    if (result.repeatFrom) {
+      const nodes = this.store.listGraphNodes(run.id);
+      const target = nodes.find(item => item.code === result.repeatFrom);
+      if (!target) throw new Error('Registered workflow repeat target missing');
+      const reset = new Set([target.id]);
+      const edges = this.store.listGraphEdges(run.id).filter(edge => edge.kind !== 'loop');
+      for (const id of reset) {
+        for (const edge of edges) if (edge.sourceNodeId === id) reset.add(edge.targetNodeId);
+      }
+      for (const id of reset) this.store.updateNodeState(id, {status: 'pending', outputSummary: ''});
+      const current = this.store.getRun(run.id);
+      if (result.countRework !== false) this.store.updateRun(run.id, {reworkCount: current.reworkCount + 1});
+      this.store.recountRunProgress(run.id);
+      this.broadcast('run.status', ids, {status: current.status, repeatFrom: result.repeatFrom});
     }
   }
 

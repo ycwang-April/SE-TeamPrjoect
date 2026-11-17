@@ -12,6 +12,7 @@ import {
 } from 'node:http';
 import {existsSync, readFileSync} from 'node:fs';
 import {extname, join, resolve} from 'node:path';
+import type {HamaService} from '../../../requirements-engineering/src/service.ts';
 import type {ICapabilityHub} from '../adapters/contracts.ts';
 import {exportWorkflowPlan} from '../core/pm-planner.ts';
 import {BUILTIN_DESIGN_SPEC_PRESETS} from '../core/presets.ts';
@@ -113,6 +114,7 @@ export class OrchestratorHttpServer {
   private readonly hub: ICapabilityHub;
   private readonly planner: WorkflowPlannerEngine;
   private readonly orchestrator: WorkflowOrchestratorEngine;
+  private readonly requirements?: HamaService;
   private readonly consolidator = new CognitiveConsolidator();
   private readonly token: string;
   private readonly startedAt = new Date().toISOString();
@@ -133,6 +135,7 @@ export class OrchestratorHttpServer {
     readonly hub: ICapabilityHub;
     readonly planner: WorkflowPlannerEngine;
     readonly orchestrator: WorkflowOrchestratorEngine;
+    readonly requirements?: HamaService;
     readonly token?: string;
     readonly staticDir?: string | null;
   }) {
@@ -143,6 +146,7 @@ export class OrchestratorHttpServer {
     this.hub = input.hub;
     this.planner = input.planner;
     this.orchestrator = input.orchestrator;
+    this.requirements = input.requirements;
     this.token = input.token ?? randomUUID().replace(/-/g, '');
     this.staticDir = input.staticDir ?? null;
   }
@@ -424,6 +428,33 @@ export class OrchestratorHttpServer {
 
     try {
       const method = req.method ?? 'GET';
+      const requirements = this.requirements;
+      if (requirements && path.startsWith('/api/hama/')) {
+        const run = /^\/api\/hama\/runs\/([\w-]+)$/.exec(path);
+        const decision = /^\/api\/hama\/runs\/([\w-]+)\/gates\/([\w-]+)$/.exec(path);
+        const baseline = /^\/api\/hama\/baselines\/([\w-]+)$/.exec(path);
+        if (method === 'GET' && path === '/api/hama/runs') {
+          this.writeJson(res, 200, requirements.list());
+        } else if (method === 'POST' && path === '/api/hama/runs') {
+          this.writeJson(res, 201, await requirements.start(await this.readJsonBody(req)));
+        } else if (method === 'GET' && run) {
+          this.writeJson(res, 200, requirements.view(run[1]!));
+        } else if (method === 'POST' && decision) {
+          this.writeJson(res, 200, requirements.decide(decision[1]!, decision[2]!, await this.readJsonBody(req)));
+        } else if (method === 'GET' && baseline) {
+          this.writeJson(res, 200, requirements.baseline(baseline[1]!));
+        } else if (method === 'GET' && path === '/api/hama/baselines') {
+          this.writeJson(res, 200, requirements.baselines(url.searchParams.get('projectId') ?? ''));
+        } else {
+          this.writeJson(res, 404, {error: 'Not found'});
+        }
+        return;
+      }
+
+      const workflowMutation = /^\/api\/workflows\/([^/]+)\//.exec(path);
+      if (method === 'POST' && workflowMutation && this.orchestrator.hasHandler(workflowMutation[1]!)) {
+        throw new OrchestratorError('POLICY_DENIED', 'Use the registered workflow controls.', 403);
+      }
 
       if (method === 'GET' && path === '/api/bootstrap') {
         this.writeJson(res, 200, this.getBootstrapSnapshot());
@@ -450,6 +481,11 @@ export class OrchestratorHttpServer {
 
       if (method === 'POST' && path === '/api/workflows/import-requirements') {
         const rec = asRecord(await this.readJsonBody(req));
+        if (requirements && rec['baselineId'] !== undefined) {
+          this.writeJson(res, 201, requirements.handoff(
+            reqString(rec, 'baselineId', 80), reqString(rec, 'workspaceId', 80)));
+          return;
+        }
         let customization: Partial<WorkflowCustomization> | undefined;
         if (rec['customization'] && typeof rec['customization'] === 'object') {
           const c = asRecord(rec['customization']);

@@ -17,6 +17,9 @@ export default defineConfig({
     sourcemap: true,
   },
   server: {
+    fs: {
+      allow: [resolve(import.meta.dirname, '..'), resolve(import.meta.dirname, '../../requirements-engineering')],
+    },
     host: '127.0.0.1',
     port: 5178,
     strictPort: true,

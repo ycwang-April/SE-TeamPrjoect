@@ -74,6 +74,7 @@ export interface AcceptanceCriterion {
   readonly id: string;
   readonly code: string;
   readonly label: string;
+  readonly requirementId?: string;
   readonly verifyCommand?: string;
   readonly verified: boolean;
   readonly evidenceNodeId?: string;
@@ -138,6 +139,12 @@ export interface GoalSpec {
   readonly id: string;
   readonly workflowId: string;
   readonly rawMarkdown: string;
+  readonly requirementsBaseline?: {
+    readonly id: string;
+    readonly projectId: string;
+    readonly revision: number;
+    readonly sha256: string;
+  };
   readonly title: string;
   readonly goal: string;
   readonly inputs: readonly string[];

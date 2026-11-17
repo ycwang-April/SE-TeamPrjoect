@@ -110,6 +110,7 @@ export class CapabilityHub implements ICapabilityHub {
       ? await this.broker.acquireHumanPrioritySlot()
       : await this.broker.acquireWorkerSlot();
     try {
+      req.signal?.throwIfAborted();
       const transport = req.capability.transport;
       switch (transport) {
         case 'local-tool':

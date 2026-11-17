@@ -645,8 +645,17 @@ export async function runNativeApiCapability(
   lookupProvider: ProviderSecretLookup,
 ): Promise<CapabilityInvocationResult> {
   const t0 = Date.now();
-  const provider = resolveProvider(req.model, lookupProvider);
+  const provider = req.providerId
+    ? lookupProvider(req.providerId)
+    : resolveProvider(req.model, lookupProvider);
   if (!provider || !provider.apiKey) {
+    if (req.textOnly || req.providerId) {
+      return {
+        outcome: 'task_failure', exitCode: 1, finalText: '', modifiedFiles: [],
+        inputTokens: 0, cachedTokens: 0, outputTokens: 0,
+        durationSec: 0, errorMessage: 'No configured native model credentials',
+      };
+    }
     return runDeterministicOfflineSynthesis(req, worktrees, t0);
   }
 
@@ -661,7 +670,7 @@ export async function runNativeApiCapability(
     (!req.model.trim() || req.model === 'default')
       ? 'deepseek-v4.1-flash'
       : req.model;
-  const maxTokens = req.role === 'evaluator' ? 1600 : 2400;
+  const maxTokens = req.maxOutputTokens ?? (req.role === 'evaluator' ? 1600 : 2400);
 
   const timeoutController = new AbortController();
   const timeoutTimer = setTimeout(
@@ -682,7 +691,7 @@ export async function runNativeApiCapability(
 
   try {
     if (provider.protocol === 'openai-compatible') {
-      const toolGuidance = req.readOnly
+      const toolGuidance = req.textOnly ? '' : req.readOnly
         ? 'Execution Mode: Read-only evaluator. Inspect worktree files via read_file/list_dir only if needed (never inspect .git), then respond strictly with valid JSON.'
         : [
             'Execution Mode: Isolated Git Worktree Worker.',
@@ -697,7 +706,7 @@ export async function runNativeApiCapability(
       const effectiveSystemPrompt = [req.systemPrompt, toolGuidance]
         .filter(Boolean)
         .join('\n\n');
-      const effectiveUserPrompt = req.readOnly
+      const effectiveUserPrompt = req.textOnly || req.readOnly
         ? req.userPrompt
         : [
             req.userPrompt,
@@ -746,7 +755,7 @@ export async function runNativeApiCapability(
         if (useLowReasoning) {
           requestBody['reasoning_effort'] = 'low';
         }
-        if (turn < 5) {
+        if (turn < 5 && !req.textOnly) {
           requestBody['tools'] = req.readOnly
             ? TOOLS_OPENAI.slice(0, 2)
             : TOOLS_OPENAI;
@@ -816,6 +825,9 @@ export async function runNativeApiCapability(
         const toolCalls = (msg['tool_calls'] ?? []) as Array<
           Record<string, unknown>
         >;
+        if (req.textOnly && toolCalls.length > 0) {
+          throw new Error('Tools are disabled for this invocation');
+        }
         if (reasoning.trim()) {
           const snippet =
             reasoning.trim().length > 600
