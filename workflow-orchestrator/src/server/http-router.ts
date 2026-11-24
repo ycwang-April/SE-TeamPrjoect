@@ -13,6 +13,12 @@ import {
 import {existsSync, readFileSync} from 'node:fs';
 import {extname, join, resolve} from 'node:path';
 import type {HamaService} from '../../../requirements-engineering/src/service.ts';
+import type {DesignService} from '../../../software-design/src/service.ts';
+import type {DesignGenerator} from '../../../software-design/src/generator.ts';
+import type {DesignReviewService} from '../../../software-design/src/reviews.ts';
+import {projectConfirmedDesign} from '../../../software-design/src/pm-input.ts';
+import type {DesignHandoffService} from '../../../software-design/src/handoff.ts';
+import type {CreateDesignInput} from '../../../software-design/src/contracts.ts';
 import type {ICapabilityHub} from '../adapters/contracts.ts';
 import {exportWorkflowPlan} from '../core/pm-planner.ts';
 import {BUILTIN_DESIGN_SPEC_PRESETS} from '../core/presets.ts';
@@ -115,6 +121,10 @@ export class OrchestratorHttpServer {
   private readonly planner: WorkflowPlannerEngine;
   private readonly orchestrator: WorkflowOrchestratorEngine;
   private readonly requirements?: HamaService;
+  private readonly designs?: DesignService;
+  private readonly designGenerator?: DesignGenerator;
+  private readonly designReviews?: DesignReviewService;
+  private readonly designHandoffs?: DesignHandoffService;
   private readonly consolidator = new CognitiveConsolidator();
   private readonly token: string;
   private readonly startedAt = new Date().toISOString();
@@ -136,6 +146,10 @@ export class OrchestratorHttpServer {
     readonly planner: WorkflowPlannerEngine;
     readonly orchestrator: WorkflowOrchestratorEngine;
     readonly requirements?: HamaService;
+    readonly designs?: DesignService;
+    readonly designGenerator?: DesignGenerator;
+    readonly designReviews?: DesignReviewService;
+    readonly designHandoffs?: DesignHandoffService;
     readonly token?: string;
     readonly staticDir?: string | null;
   }) {
@@ -147,6 +161,10 @@ export class OrchestratorHttpServer {
     this.planner = input.planner;
     this.orchestrator = input.orchestrator;
     this.requirements = input.requirements;
+    this.designs = input.designs;
+    this.designGenerator = input.designGenerator;
+    this.designReviews = input.designReviews;
+    this.designHandoffs = input.designHandoffs;
     this.token = input.token ?? randomUUID().replace(/-/g, '');
     this.staticDir = input.staticDir ?? null;
   }
@@ -271,7 +289,7 @@ export class OrchestratorHttpServer {
       designSpecPresets: BUILTIN_DESIGN_SPEC_PRESETS,
       infraStatus: {
         opencodeGoConfigured: this.vault.getKeyStatus('opencode-go').hasApiKey,
-        defaultModel: nativeCap?.defaultModel || 'deepseek-v4.1-flash',
+        defaultModel: nativeCap?.defaultModel || 'deepseek-flash',
         proxyConfigured: isProxyConfigured(),
         gitReady: this.isGitReady(),
       },
@@ -429,6 +447,92 @@ export class OrchestratorHttpServer {
     try {
       const method = req.method ?? 'GET';
       const requirements = this.requirements;
+      if (this.designHandoffs) {
+        const handoff = /^\/api\/designs\/([\w-]+)\/revisions\/([1-9]\d*)\/handoff$/.exec(path);
+        const origin = /^\/api\/workflows\/([\w-]+)\/design-handoff$/.exec(path);
+        if (method === 'POST' && handoff) {
+          const result = this.designHandoffs.handoff(handoff[1]!, Number(handoff[2]), await this.readJsonBody(req));
+          this.writeJson(res, result.created ? 201 : 200, result.receipt); return;
+        }
+        if (method === 'GET' && handoff) {
+          this.writeJson(res, 200, this.designHandoffs.lookup(handoff[1]!, Number(handoff[2]), {
+            workspaceId: url.searchParams.get('workspaceId'), expectedHash: url.searchParams.get('expectedHash'),
+          })); return;
+        }
+        if (method === 'GET' && origin) {
+          this.writeJson(res, 200, this.designHandoffs.forWorkflow(origin[1]!)); return;
+        }
+      }
+      if (this.designReviews) {
+        const pmInput = /^\/api\/designs\/([\w-]+)\/revisions\/([1-9]\d*)\/pm-input$/.exec(path);
+        if (method === 'GET' && pmInput) {
+          this.writeJson(res, 200, projectConfirmedDesign(this.designReviews.read(pmInput[1]!, Number(pmInput[2])), url.searchParams.get('expectedHash') ?? ''));
+          return;
+        }
+        const revisions = /^\/api\/designs\/([\w-]+)\/revisions$/.exec(path);
+        const revision = /^\/api\/designs\/([\w-]+)\/revisions\/([1-9]\d*)$/.exec(path);
+        const review = /^\/api\/designs\/([\w-]+)\/revisions\/([1-9]\d*)\/review$/.exec(path);
+        if (method === 'GET' && path === '/api/designs') {
+          this.writeJson(res, 200, this.designReviews.heads(url.searchParams.get('baselineId') ?? undefined)); return;
+        }
+        if (method === 'GET' && revisions) {
+          this.writeJson(res, 200, this.designReviews.list(revisions[1]!)); return;
+        }
+        if (method === 'GET' && revision) {
+          this.writeJson(res, 200, this.designReviews.read(revision[1]!, Number(revision[2]))); return;
+        }
+        if (method === 'POST' && review) {
+          this.writeJson(res, 200, this.designReviews.review(review[1]!, Number(review[2]), await this.readJsonBody(req))); return;
+        }
+        if (method === 'POST' && revisions) {
+          const body = asRecord(await this.readJsonBody(req));
+          if (body['parentRevision'] !== undefined) {
+            let generationId: string | undefined;
+            if (body['body'] === undefined && this.designGenerator) {
+              reqString(body, 'actor', 120);
+              reqString(body, 'reason', 6000);
+              const context = this.designReviews.generationContext(revisions[1]!, Number(body['parentRevision']), String(body['expectedHash']), body['sourceCommit']);
+              const generated = await this.designGenerator.generate(revisions[1]!, {expectedHash: context.input.contentSha256,
+                providerId: body['providerId'], model: body['model'], feedback: body['feedback'] ?? body['reason']}, context);
+              body['body'] = generated.body;
+              generationId = generated.generationId;
+            }
+            this.writeJson(res, 201, this.designReviews.revise(revisions[1]!, body, generationId));
+          }
+          else {
+            const generation = this.designGenerator?.list(revisions[1]!).find(g => g.generationId === body['generationId']);
+            if (!generation) throw new OrchestratorError('NOT_FOUND', '生成记录不存在', 404);
+            this.writeJson(res, 201, this.designReviews.createFromGeneration(generation, body));
+          }
+          return;
+        }
+      }
+      const generate = /^\/api\/designs\/([\w-]+)\/generate$/.exec(path);
+      const generations = /^\/api\/designs\/([\w-]+)\/generations$/.exec(path);
+      if (this.designGenerator && generate && method === 'POST') {
+        this.writeJson(res, 201, await this.designGenerator.generate(generate[1]!, await this.readJsonBody(req)));
+        return;
+      }
+      if (this.designGenerator && generations && method === 'GET') {
+        this.writeJson(res, 200, this.designGenerator.list(generations[1]!));
+        return;
+      }
+      if (this.designs) {
+        const workspace = /^\/api\/design-workspaces\/([\w-]+)$/.exec(path);
+        const design = /^\/api\/designs\/([\w-]+)$/.exec(path);
+        if (method === 'GET' && workspace) {
+          this.writeJson(res, 200, this.designs.inspectWorkspace(workspace[1]!));
+          return;
+        }
+        if (method === 'POST' && path === '/api/designs') {
+          this.writeJson(res, 201, this.designs.create(await this.readJsonBody(req) as CreateDesignInput));
+          return;
+        }
+        if (method === 'GET' && design) {
+          this.writeJson(res, 200, this.designs.read(design[1]!));
+          return;
+        }
+      }
       if (requirements && path.startsWith('/api/hama/')) {
         const run = /^\/api\/hama\/runs\/([\w-]+)$/.exec(path);
         const decision = /^\/api\/hama\/runs\/([\w-]+)\/gates\/([\w-]+)$/.exec(path);

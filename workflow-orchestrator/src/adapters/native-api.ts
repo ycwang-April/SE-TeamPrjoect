@@ -456,6 +456,7 @@ async function postJsonWithOptionalProxyOnce(
 
 function inferProviderCandidates(model: string): string[] {
   const lower = model.toLowerCase();
+  if (lower === 'deepseek-flash') return ['deepseek'];
   if (lower.includes('deepseek-v4') || lower.includes('dsv4')) {
     return ['opencode-go', 'deepseek', 'openai', 'anthropic'];
   }
@@ -752,7 +753,9 @@ export async function runNativeApiCapability(
           max_tokens: maxTokens,
           messages,
         };
-        if (useLowReasoning) {
+        if (provider.providerId === 'deepseek' && effectiveModel === 'deepseek-flash') {
+          requestBody['thinking'] = {type: 'disabled'};
+        } else if (useLowReasoning) {
           requestBody['reasoning_effort'] = 'low';
         }
         if (turn < 5 && !req.textOnly) {

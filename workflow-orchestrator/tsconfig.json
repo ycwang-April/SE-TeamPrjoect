@@ -22,7 +22,9 @@
     "scripts/**/*.mjs",
     "verify/**/*.ts",
     "../requirements-engineering/src/**/*.ts",
-    "../requirements-engineering/verify/**/*.ts"
+    "../requirements-engineering/verify/**/*.ts",
+    "../software-design/src/**/*.ts",
+    "../software-design/verify/**/*.ts"
   ],
   "exclude": ["node_modules", "dist", "renderer"]
 }

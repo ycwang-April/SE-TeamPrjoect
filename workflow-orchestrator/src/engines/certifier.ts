@@ -116,7 +116,7 @@ export class ExecutionCertifier {
       (!cap.defaultModel ||
         cap.defaultModel === 'default' ||
         cap.defaultModel === 'deepseek-chat')
-        ? 'deepseek-v4.1-flash'
+        ? 'deepseek-flash'
         : cap.defaultModel);
     const diff = await this.worktrees.diffSinceCommit(
       run.worktreePath,

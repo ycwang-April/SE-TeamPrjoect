@@ -7,6 +7,7 @@ import {renderPrd} from '../../../../requirements-engineering/src/markdown.ts';
 import type {ModelProviderConfig, WorkspaceEntry} from '../../../src/shared/types';
 import {orchApi} from '../api/client';
 import {TwinGraphCanvas} from '../components/TwinGraphCanvas';
+import {DesignStart} from '../components/DesignStart';
 import {formatRunStatus, type UiLang} from '../i18n';
 
 const labels: Record<DecisionInput['action'], string> = {
@@ -60,13 +61,14 @@ function Details({title, data}: {title: string; data: unknown}) {
   </details>;
 }
 
-function IntakeForm({providers, busy, onStart, history}: {
+function IntakeForm({providers, busy, onStart, history, initial}: {
   providers: readonly ModelProviderConfig[]; busy: boolean; onStart: (input: StartInput) => void;
   history: ApprovedRequirementsBaseline[];
+  initial: StartInput | null;
 }) {
-  const [input, setInput] = useState(blank);
-  const [ideas, setIdeas] = useState('');
-  const [docs, setDocs] = useState('');
+  const [input, setInput] = useState(initial ?? blank);
+  const [ideas, setIdeas] = useState(initial?.ideas.join('\n\n') ?? '');
+  const [docs, setDocs] = useState(initial?.documents.map(d => `${d.title}\n${d.content}`).join('\n\n') ?? '');
   const validProviders = providers.filter(p => p.hasApiKey);
   const provider = validProviders.find(p => p.id === input.providerId);
   const set = <K extends keyof StartInput>(key: K, value: StartInput[K]) =>
@@ -246,6 +248,7 @@ export function RequirementsView({lang, providers, workspaces, onOpenWorkflow}: 
   const [busy, setBusy] = useState(false);
   const [focus, setFocus] = useState<string | null>(null);
   const [history, setHistory] = useState<ApprovedRequirementsBaseline[]>([]);
+  const [pendingHamaInput, setPendingHamaInput] = useState<StartInput | null>(null);
   const [targetWorkspace, setTargetWorkspace] = useState('');
   const projectKey = [...new Set(runs.map(run => run.projectId))].sort().join(',');
   const newestBaseline = view?.baseline?.id ?? '';
@@ -297,7 +300,7 @@ export function RequirementsView({lang, providers, workspaces, onOpenWorkflow}: 
   return <div className="page-scroll hama-page">
     <header className="hama-row hama-title">
       <div><h1>HAMA-Loop 需求工程</h1><p>从 Idea 出发，协同评审方案与需求，发布正式需求基线。</p></div>
-      <button type="button" className="btn" onClick={() => {setId(''); setFocus(null);}} disabled={!id || busy}>新建运行</button>
+      <button type="button" className="btn" onClick={() => {setPendingHamaInput(null); setId(''); setFocus(null);}} disabled={!id || busy}>新建运行</button>
     </header>
     {error && <div className="error-banner" role="alert">{error}<button className="btn" onClick={() => setError('')}>关闭</button></div>}
     <div className="hama-layout">
@@ -311,7 +314,7 @@ export function RequirementsView({lang, providers, workspaces, onOpenWorkflow}: 
         </button>)}
       </aside>
       <div className="hama-stack">
-        {!id && <IntakeForm providers={providers} busy={busy} history={history} onStart={input => void action(async () => {
+        {!id && <IntakeForm providers={providers} busy={busy} history={history} initial={pendingHamaInput} onStart={input => void action(async () => {
           const result = await orchApi.startHamaRun(input);
           setId(result.detail.run.id);
           setView(result);
@@ -360,6 +363,13 @@ export function RequirementsView({lang, providers, workspaces, onOpenWorkflow}: 
             {baseline && <Details title="基线版本、摘要与审批记录" data={{
               id: baseline.id, parentId: baseline.parentId, revision: baseline.revision, sha256: baseline.sha256,
               approval: baseline.approval, confirmation: baseline.confirmation,
+            }} />}
+            {baseline && <DesignStart key={baseline.id} baseline={baseline} workspaces={workspaces} providers={providers} onOpenWorkflow={onOpenWorkflow} onReturnToHama={revision => {
+              setPendingHamaInput({...selected.input, projectId: revision.input.baselineRef.projectId,
+                title: revision.input.baseline.prd.title, mode: revision.input.baseline.mode, parentBaselineId: revision.input.baselineRef.id,
+                ideas: [...selected.input.ideas, ...revision.decisions.filter(d => d.action === 'request_changes' && d.scope === 'requirements')
+                  .flatMap(d => d.findings.map(f => `设计评审反馈（待需求确认）：${f.evidence}`))]});
+              setId(''); setView(null); setFocus(null); setError('');
             }} />}
             {baseline?.mode === 'live' && <div className="hama-actions">
               <label>下游工作区<select value={targetWorkspace} onChange={event => setTargetWorkspace(event.target.value)}>

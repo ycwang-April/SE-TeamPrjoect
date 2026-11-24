@@ -106,7 +106,7 @@ export class PmAgentDecomposer {
       maskedKeyHint: '',
     }));
     const orderedProviders = [...providers].sort((a, b) =>
-      a.id === 'opencode-go' ? -1 : b.id === 'opencode-go' ? 1 : 0,
+      a.id === 'deepseek' ? -1 : b.id === 'deepseek' ? 1 : 0,
     );
     const activeProvider = orderedProviders
       .map(p => this.resolveProvider!(p.id))
@@ -181,7 +181,7 @@ export class PmAgentDecomposer {
             model: modelId,
             max_tokens: 2048,
             temperature: 0.2,
-            ...(useLowReasoning ? {reasoning_effort: 'low'} : {}),
+            ...(activeProvider.providerId === 'deepseek' ? {thinking: {type: 'disabled'}} : useLowReasoning ? {reasoning_effort: 'low'} : {}),
             messages: [
               {
                 role: 'system',

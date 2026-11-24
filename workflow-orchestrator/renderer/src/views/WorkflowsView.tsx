@@ -31,6 +31,7 @@ import {
   ShieldCheckIcon,
 } from '../components/Icons';
 import {TwinGraphCanvas} from '../components/TwinGraphCanvas';
+import type {DesignHandoffReceipt} from '../../../../software-design/src/handoff.ts';
 
 interface WorkflowsViewProps {
   readonly lang: UiLang;
@@ -86,6 +87,7 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
   } = props;
 
   const [detail, setDetail] = useState<WorkflowDetailSnapshot | null>(null);
+  const [designOrigin, setDesignOrigin] = useState<DesignHandoffReceipt | null>(null);
   const [subTab, setSubTab] = useState<'spec' | 'graph' | 'validate'>('graph');
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -163,6 +165,12 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
     } else {
       setDetail(null);
     }
+  }, [activeId]);
+  useEffect(() => {
+    let active = true; setDesignOrigin(null);
+    if (activeId) void orchApi.workflowDesignHandoff(activeId).then(value => {if (active) setDesignOrigin(value);})
+      .catch(e => {if (active && e.status !== 404) setErrorMsg(e.message);});
+    return () => {active = false;};
   }, [activeId]);
 
   const selectedNode = useMemo(
@@ -541,6 +549,12 @@ export function WorkflowsView(props: WorkflowsViewProps): ReactElement {
       )}
 
       {/* Design Tabs */}
+      {designOrigin && <div className="card" style={{margin: '12px 20px'}}>
+        <strong>{tr(lang, '软件设计交接', 'Software design handoff')} · {designOrigin.status === 'received' ? tr(lang, 'PM 已签收', 'PM received') : tr(lang, '待核查', 'Needs review')}</strong>
+        <p>{designOrigin.designRef.designId} / v{designOrigin.designRef.revision} · {designOrigin.designRef.contentSha256}</p>
+        <p>{tr(lang, '原始 PM 报告', 'Original PM report')}：{designOrigin.pmReportId ?? '—'} · {tr(lang, '目标提交', 'Target commit')}：{designOrigin.designRef.sourceCommit}</p>
+        <details><summary>{tr(lang, '查看交接报告与核对诊断', 'Handoff report and diagnostics')}</summary><pre>{JSON.stringify({diagnostics: designOrigin.diagnostics, pmReport: designOrigin.workflow?.pmReport}, null, 2)}</pre></details>
+      </div>}
       <div
         className="underline-tabs"
         style={{padding: '0 20px', background: '#ffffff'}}

@@ -1,6 +1,12 @@
 import type {
   ApprovedRequirementsBaseline, DecisionInput, RunSummary, RunView, StartInput,
 } from '../../../../requirements-engineering/src/contracts.ts';
+import type {CreateDesignInput, DesignInputDraft, WorkspaceInventory} from '../../../../software-design/src/contracts.ts';
+import type {DesignGeneration} from '../../../../software-design/src/generator.ts';
+import type {GenerationRequest} from '../../../../software-design/src/design-schema.ts';
+import type {DesignRevision, ReviewRequest} from '../../../../software-design/src/reviews.ts';
+import type {DesignPmInput} from '../../../../software-design/src/pm-input.ts';
+import type {DesignHandoffReceipt} from '../../../../software-design/src/handoff.ts';
 import type {
   BootstrapSnapshot,
   ConfirmVersionRequest,
@@ -103,12 +109,27 @@ async function apiFetch<T>(
       typeof json['error'] === 'string'
         ? json['error']
         : `HTTP ${res.status} error`;
-    throw new Error(msg);
+    throw Object.assign(new Error(msg), {code: json['code'], details: json['details'], status: res.status});
   }
   return json as T;
 }
 
 export const orchApi = {
+  handoffDesign: (id: string, revision: number, body: {workspaceId: string; expectedHash: string}) =>
+    apiFetch<DesignHandoffReceipt>(`/api/designs/${id}/revisions/${revision}/handoff`, {method: 'POST', body}),
+  designHandoff: (id: string, revision: number, workspaceId: string, expectedHash: string) =>
+    apiFetch<DesignHandoffReceipt>(`/api/designs/${id}/revisions/${revision}/handoff?workspaceId=${encodeURIComponent(workspaceId)}&expectedHash=${encodeURIComponent(expectedHash)}`),
+  workflowDesignHandoff: (id: string) => apiFetch<DesignHandoffReceipt>(`/api/workflows/${id}/design-handoff`),
+  designPmInput: (id: string, revision: number, expectedHash: string) => apiFetch<DesignPmInput>(`/api/designs/${id}/revisions/${revision}/pm-input?expectedHash=${encodeURIComponent(expectedHash)}`),
+  designHeads: (baselineId?: string) => apiFetch<DesignRevision[]>(`/api/designs${baselineId ? `?baselineId=${encodeURIComponent(baselineId)}` : ''}`),
+  designRevisions: (id: string) => apiFetch<DesignRevision[]>(`/api/designs/${id}/revisions`),
+  designRevision: (id: string, revision: number) => apiFetch<DesignRevision>(`/api/designs/${id}/revisions/${revision}`),
+  createDesignRevision: (id: string, body: unknown) => apiFetch<DesignRevision>(`/api/designs/${id}/revisions`, {method: 'POST', body}),
+  reviewDesignRevision: (id: string, revision: number, body: ReviewRequest) => apiFetch<DesignRevision>(`/api/designs/${id}/revisions/${revision}/review`, {method: 'POST', body}),
+  generateDesign: (id: string, body: GenerationRequest) => apiFetch<DesignGeneration>(`/api/designs/${id}/generate`, {method: 'POST', body}),
+  designGenerations: (id: string) => apiFetch<DesignGeneration[]>(`/api/designs/${id}/generations`),
+  designWorkspace: (id: string) => apiFetch<WorkspaceInventory>(`/api/design-workspaces/${encodeURIComponent(id)}`),
+  createDesign: (body: CreateDesignInput) => apiFetch<DesignInputDraft>('/api/designs', {method: 'POST', body}),
   getBootstrap: () => apiFetch<BootstrapSnapshot>('/api/bootstrap'),
   hamaRuns: () => apiFetch<RunSummary[]>('/api/hama/runs'),
   hamaRun: (id: string) => apiFetch<RunView>(`/api/hama/runs/${id}`),
