@@ -7,6 +7,7 @@
 | 设计、实现或答辩本阶段 | [子系统设计说明](./subsystem-design.md) | 系统边界、技术选型、模块、数据与接口契约、设计版本和评审流程 |
 | 为自己的需求撰写设计 | [通用 Design Spec 模板](./design-spec-template.md) | 从本项目 PRD 提取设计输入、填写评审稿并生成 PM 导入正文 |
 | 实现通用设计流程 | [实现与验收方案](./implementation-plan.md) | 输入契约、设计推导、代码接入点、分期交付与跨项目验证 |
+| 逐项实施并联调上下游 | [实施与交接清单](./checkoutlist.md) | 从 HAMA 已发布基线到 PM、Coding 与 QA 的操作步骤、验收条件及证据记录 |
 | 查看一个已填写的案例 | [校园活动报名设计评审稿](./campus-design-review.md) | 需求来源、技术决策、接口行为、事务、追踪矩阵和待确认项 |
 | 在编排器中演练拆解 | [校园活动报名 Design Spec](./campus-design-spec.md) | 与评审稿配套的 PM 输入，含模块文件范围、FR、AC 和交付约束 |
 
