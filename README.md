@@ -10,6 +10,8 @@ Software Engineering team project repository.
 
 [软件设计](./software-design/README.md) 负责将 HAMA 已确认的 PRD 转换为 Design Spec，并通过已有 Planner 接口提交给已实现的 PM Agent。文档规定了转换规则、设计评审、字段映射和 PM 接收回执，校园活动报名仅用于演示。
 
+软件设计六步实现及本地集成验收已完成，覆盖非校园需求发布、设计确认、幂等签收和跨版本隔离；详见[验收记录](./software-design/verify/step6-verification.md)及[交接总表](./software-design/verify/step6-evidence/summary.md)。
+
 ## Implemented Subsystem: [`workflow-orchestrator/`](./workflow-orchestrator/README.md)
 
 This folder implements the **Requirements-to-Execution Real-Time Workflow Orchestration Subsystem** — starting strictly from receiving a confirmed Requirements Document / PRD and carrying the pipeline end-to-end through:

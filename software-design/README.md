@@ -8,12 +8,13 @@
 | 为自己的需求撰写设计 | [通用 Design Spec 模板](./design-spec-template.md) | 从本项目 PRD 提取设计输入、填写评审稿并生成 PM 导入正文 |
 | 实现通用设计流程 | [实现与验收方案](./implementation-plan.md) | 输入契约、设计推导、代码接入点、分期交付与跨项目验证 |
 | 逐项实施并联调上下游 | [实施与交接清单](./checkoutlist.md) | 从接收 PRD 到现有 PM Agent 签收的六个步骤与证据记录 |
+| 核对端到端验收 | [步骤 6 验收记录](./verify/step6-verification.md) · [交接总表](./verify/step6-evidence/summary.md) | 实际 HAMA 发布、跨项目转换、PM 签收与修订隔离证据 |
 | 查看一个已填写的案例 | [校园活动报名设计评审稿](./campus-design-review.md) | 需求来源、技术决策、接口行为、事务、追踪矩阵和待确认项 |
 | 在编排器中演练拆解 | [校园活动报名 Design Spec](./campus-design-spec.md) | 与评审稿配套的 PM 输入，含模块文件范围、FR、AC 和交付约束 |
 
 ## 当前可用方式
 
-清单步骤 1–5 已接通：在需求工程页的已发布基线下点击「生成软件设计」，显式选择目标工程并核对提交后保存输入草案，再选择提供商和模型生成正文。页面显示结构化草案、逐项诊断、评审稿及 PM Markdown 预览，支持反馈重试与导出。将成功生成结果保存为评审修订后，可提交评审、逐项退回、追加修订并确认冻结；确认后可查看结构化 PM 输入并交接现有 PM Agent。服务原子创建工作流及签收关联，成功后打开返回的工作流，重试与重启均可找回原结果。设计及历史决定存入宿主 SQLite；无提交工程先绑定初始提交，demo 基线仅供演练。实现范围、接口、测试与样例见[步骤 1](./verify/step1-verification.md)、[步骤 2](./verify/step2-verification.md)、[步骤 3](./verify/step3-verification.md)、[步骤 4](./verify/step4-verification.md)和[步骤 5 验证记录](./verify/step5-verification.md)。完整跨项目验收将在步骤 6 执行。
+清单步骤 1–6 已实现并完成本地集成验收：在需求工程页的已发布基线下点击「生成软件设计」，显式选择目标工程并核对提交后保存输入草案，再选择提供商和模型生成正文。页面显示结构化草案、逐项诊断、评审稿及 PM Markdown 预览，支持反馈重试与导出。将成功生成结果保存为评审修订后，可提交评审、逐项退回、追加修订并确认冻结；确认后可查看结构化 PM 输入并交接现有 PM Agent。服务原子创建工作流及签收关联，成功后打开返回的工作流，重试与重启均可找回原结果。设计及历史决定存入宿主 SQLite；无提交工程先绑定初始提交，demo 基线仅供演练。实现范围、接口、测试与样例见[步骤 1](./verify/step1-verification.md)、[步骤 2](./verify/step2-verification.md)、[步骤 3](./verify/step3-verification.md)、[步骤 4](./verify/step4-verification.md)、[步骤 5](./verify/step5-verification.md)和[最终验收记录](./verify/step6-verification.md)。验收使用本地模型协议夹具和脚本化审批，真实 HAMA / Planner / SQLite 链路全部通过；线上模型质量与下游目标应用执行另行验证。
 
 1. 在「需求工程」页确认 PRD，读取已发布的基线。保留其项目 ID、基线 ID、版本、SHA-256 与原始需求和验收编号。校园演示可用于文档演练，正式交接使用 live 基线。
 2. 选择模型起草设计正文，或使用通用模板人工填写评审稿。已有项目引用现有入口和代码，新项目声明拟新增的入口与文件。核对诊断、技术假设和待确认项，填写反馈后可重新起草；涉及用户目标或验收口径的变化交回需求工程。

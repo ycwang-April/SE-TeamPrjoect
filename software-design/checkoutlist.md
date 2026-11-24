@@ -1,6 +1,6 @@
 # 软件设计实施与上下游交接清单
 
-本清单从接收 HAMA 已确认的 PRD 开始，到已实现的 PM Agent 接收本次 Design Spec 并返回可核对的报告为止。按步骤 1–6 实施，每项完成后在变更或测试记录中附证据。下列方框均为待实施或待联调事项。
+本清单从接收 HAMA 已确认的 PRD 开始，到已实现的 PM Agent 接收本次 Design Spec 并返回可核对的报告为止。按步骤 1–6 实施，每项完成后在变更或测试记录中附证据。各项完成状态及验收证据见对应步骤；本地集成验收使用显式模型协议夹具和脚本化审批。
 
 ## 交接总表
 
@@ -81,12 +81,17 @@
 
 ## 6. 验收 PRD 转换与 PM 签收
 
-- [ ] **转换质量。** 选一项非校园需求，例如统计文件非空行数。对照原始 PRD，检查 Design Spec 新增了文件与标准输出契约、空白行判定方式、文件不存在时的退出行为、目标模块和可观察的验收方法。未确定的语义列为待确认项，原始 AC 可逐条回查。
-- [ ] **跨项目。** 校园演示用来检查交互与容量约束，账本测试基线用来检查分录及汇率契约。用同一设计服务处理不同输入，保存各自的草案和覆盖表。正式交接联调用已发布的 live 基线。
-- [ ] **真实交接。** 从一份已确认的非校园 PRD 生成、评审并冻结 Design Spec，调用现有 Planner 结构化入口。比较返回的 goalSpec.rawMarkdown 与本次确认稿，在 PM 报告中反查一个模块的原始需求和文件范围。并发或超时重试应取回同一个 workflowId 和报告。
-- [ ] **修订隔离。** 修改一项已批准需求，发布新 PRD 版本并形成新设计修订或系列。并排读取两次确认稿及对应交接结果，核对变更项有来源、旧确认稿仍可复现。
-- [ ] **回归。** 在仓库根目录运行 `node --experimental-transform-types --test requirements-engineering/verify/hama.test.ts`，在 workflow-orchestrator 目录运行 `npm run typecheck` 和 `npm run verify:gates`。另覆盖新增的转换、版本冲突、字段保真及幂等交接用例。
+- [x] **转换质量。** 选一项非校园需求，例如统计文件非空行数。对照原始 PRD，检查 Design Spec 新增了文件与标准输出契约、空白行判定方式、文件不存在时的退出行为、目标模块和可观察的验收方法。未确定的语义列为待确认项，原始 AC 可逐条回查。
+- [x] **跨项目。** 校园演示用来检查交互与容量约束，账本测试基线用来检查分录及汇率契约。用同一设计服务处理不同输入，保存各自的草案和覆盖表。正式交接联调用已发布的 live 基线。
+- [x] **真实交接。** 从一份已确认的非校园 PRD 生成、评审并冻结 Design Spec，调用现有 Planner 结构化入口。比较返回的 goalSpec.rawMarkdown 与本次确认稿，在 PM 报告中反查一个模块的原始需求和文件范围。并发或超时重试应取回同一个 workflowId 和报告。
+- [x] **修订隔离。** 修改一项已批准需求，发布新 PRD 版本并形成新设计修订或系列。并排读取两次确认稿及对应交接结果，核对变更项有来源、旧确认稿仍可复现。
+- [x] **回归。** 在仓库根目录运行 `node --experimental-transform-types --test requirements-engineering/verify/hama.test.ts`，在 workflow-orchestrator 目录运行 `npm run typecheck` 和 `npm run verify:gates`。另覆盖新增的转换、版本冲突、字段保真及幂等交接用例。
+
+实施证据见[步骤 6 验收记录](./verify/step6-verification.md)、[机器可读汇总](./verify/step6-evidence/summary.json)及以下交接总表。全部 14 项测试、类型检查、生产构建和三个编排器门禁通过。
 
 | 项目 / PRD 基线版本与摘要 | 工作区 / 目标提交 | Design Spec 修订与摘要 | workflow.id / pmReport.id | 抽查的原始需求与 AC / PM 模块 / 结果 |
 | --- | --- | --- | --- | --- |
-| 〈来源〉 | 〈目标〉 | 〈确认版本〉 | 〈现有 Planner 返回〉 | 〈证据位置〉 |
+| counter-v1 · acceptance-counter<br>baseline-run-8d4b1432 / v1<br>1ac6e5d59f2d18b4cbb997c8b440158e2e5ebf7c6ed8cc5f5cb14e268fc12757 | ws-88011696<br>4ee2cce7f1b53fc0004d1dd322c3533ea4bd1fae | design-d18a7274-6419-44ce-ae20-691ad28d35bc / v1<br>4505125e3d9b281e8c5259e1521de33fd2475007948ac107dbb41faf4d868074 | wf-ed9c79c7<br>pm-6e9a047b | FR-75b955fe0e1a99fbbb8f<br>AC-87b89be3d72b4d847e19<br>entry / src/cli.ts / P2.T1<br>received；[完整证据](./verify/step6-evidence/counter-v1.json) |
+| ledger · acceptance-ledger<br>baseline-run-5c1edfe7 / v1<br>7bfa76e7872ad64cc4cb3e95ab7d5bf427a3d47a8e875d53001407fdee62ad71 | ws-6fd6d856<br>cad45dde810aefd49627451c5854b12ca1d6a016 | design-a5f1d7f0-7572-4d38-b5c5-6c5ad43d4530 / v1<br>6dee9a207cee968687b8d2cb5081956197b3e1575f9e74631e1e3785957503d0 | wf-f7631008<br>pm-91641362 | FR-4da5a603dfd62de7ae18<br>AC-d69b70f80aa98064a5df<br>entry / src/journal-api.ts / P2.T1<br>received；[完整证据](./verify/step6-evidence/ledger.json) |
+| campus-demo · acceptance-campus<br>baseline-run-8becd703 / v1<br>1d9ed1bbf4b5cab718f21ca9dc86b164609967a6ec6f3c6e5f4fe6bd88fa0173 | ws-080d15a7<br>62852e9f6f71de8a3e948a7466c9be694bedf35c | design-c0d7ddde-3751-4354-8f10-c8fa0ce396a7 / v1<br>5f85ad1e5d0a8e3a67191d14a53836a1277d18e6da782032aabde3b1974d60d6 | 演练，不创建工作流<br>无 PM 回执 | FR-e9c0c1e97f4001b50b8d<br>AC-751562f2dc980d63c9e2<br>entry / src/registration-view.tsx / 演练草案<br>demo_draft_only；[完整证据](./verify/step6-evidence/campus-demo.json) |
+| counter-v2 · acceptance-counter<br>baseline-run-bacc14cc / v2<br>3a738516324ef9961e9bf34dee9950d1ffd9ca07887748a2d53c0dd2f7d3ac00 | ws-88011696<br>4ee2cce7f1b53fc0004d1dd322c3533ea4bd1fae | design-c11544b2-6c6e-405c-ac5b-28b3ff75731f / v1<br>412e31a09f1fe5a52489c3eae10b169fc2162e258c7ad5e31ff98a868455eeb0 | wf-9e5d5b2a<br>pm-87c81588 | FR-75b955fe0e1a99fbbb8f<br>AC-87b89be3d72b4d847e19<br>entry / src/cli.ts / P2.T1<br>received；[完整证据](./verify/step6-evidence/counter-v2.json) |

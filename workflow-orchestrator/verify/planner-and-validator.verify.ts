@@ -91,7 +91,7 @@ function run(): void {
     );
     assert.equal(
       store.listCapabilities().find(c => c.id === 'native-api')?.defaultModel,
-      'deepseek-v4.1-flash',
+      'deepseek-flash',
     );
 
     // 2. Dual-mode edit + ChangeImpactReport + Fail-closed capability blocking
