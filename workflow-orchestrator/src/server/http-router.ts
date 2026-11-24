@@ -14,6 +14,7 @@ import {existsSync, readFileSync} from 'node:fs';
 import {extname, join, resolve} from 'node:path';
 import type {HamaService} from '../../../requirements-engineering/src/service.ts';
 import type {DesignService} from '../../../software-design/src/service.ts';
+import type {DesignGenerator} from '../../../software-design/src/generator.ts';
 import type {CreateDesignInput} from '../../../software-design/src/contracts.ts';
 import type {ICapabilityHub} from '../adapters/contracts.ts';
 import {exportWorkflowPlan} from '../core/pm-planner.ts';
@@ -118,6 +119,7 @@ export class OrchestratorHttpServer {
   private readonly orchestrator: WorkflowOrchestratorEngine;
   private readonly requirements?: HamaService;
   private readonly designs?: DesignService;
+  private readonly designGenerator?: DesignGenerator;
   private readonly consolidator = new CognitiveConsolidator();
   private readonly token: string;
   private readonly startedAt = new Date().toISOString();
@@ -140,6 +142,7 @@ export class OrchestratorHttpServer {
     readonly orchestrator: WorkflowOrchestratorEngine;
     readonly requirements?: HamaService;
     readonly designs?: DesignService;
+    readonly designGenerator?: DesignGenerator;
     readonly token?: string;
     readonly staticDir?: string | null;
   }) {
@@ -152,6 +155,7 @@ export class OrchestratorHttpServer {
     this.orchestrator = input.orchestrator;
     this.requirements = input.requirements;
     this.designs = input.designs;
+    this.designGenerator = input.designGenerator;
     this.token = input.token ?? randomUUID().replace(/-/g, '');
     this.staticDir = input.staticDir ?? null;
   }
@@ -434,6 +438,16 @@ export class OrchestratorHttpServer {
     try {
       const method = req.method ?? 'GET';
       const requirements = this.requirements;
+      const generate = /^\/api\/designs\/([\w-]+)\/generate$/.exec(path);
+      const generations = /^\/api\/designs\/([\w-]+)\/generations$/.exec(path);
+      if (this.designGenerator && generate && method === 'POST') {
+        this.writeJson(res, 201, await this.designGenerator.generate(generate[1]!, await this.readJsonBody(req)));
+        return;
+      }
+      if (this.designGenerator && generations && method === 'GET') {
+        this.writeJson(res, 200, this.designGenerator.list(generations[1]!));
+        return;
+      }
       if (this.designs) {
         const workspace = /^\/api\/design-workspaces\/([\w-]+)$/.exec(path);
         const design = /^\/api\/designs\/([\w-]+)$/.exec(path);

@@ -2,6 +2,8 @@ import type {
   ApprovedRequirementsBaseline, DecisionInput, RunSummary, RunView, StartInput,
 } from '../../../../requirements-engineering/src/contracts.ts';
 import type {CreateDesignInput, DesignInputDraft, WorkspaceInventory} from '../../../../software-design/src/contracts.ts';
+import type {DesignGeneration} from '../../../../software-design/src/generator.ts';
+import type {GenerationRequest} from '../../../../software-design/src/design-schema.ts';
 import type {
   BootstrapSnapshot,
   ConfirmVersionRequest,
@@ -110,6 +112,8 @@ async function apiFetch<T>(
 }
 
 export const orchApi = {
+  generateDesign: (id: string, body: GenerationRequest) => apiFetch<DesignGeneration>(`/api/designs/${id}/generate`, {method: 'POST', body}),
+  designGenerations: (id: string) => apiFetch<DesignGeneration[]>(`/api/designs/${id}/generations`),
   designWorkspace: (id: string) => apiFetch<WorkspaceInventory>(`/api/design-workspaces/${encodeURIComponent(id)}`),
   createDesign: (body: CreateDesignInput) => apiFetch<DesignInputDraft>('/api/designs', {method: 'POST', body}),
   getBootstrap: () => apiFetch<BootstrapSnapshot>('/api/bootstrap'),

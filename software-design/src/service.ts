@@ -78,7 +78,7 @@ export class DesignService {
       }
       notes.push('清单及依赖取自目标提交，未提交或未跟踪文件不计入该版本。');
     }
-    notes.push('proposedPaths 单独记录拟新增路径，当前未进行正文生成。');
+    notes.push('输入阶段尚未推导拟新增路径；生成后的拟建工件见设计正文 modules.files 中 action=create 的条目。');
     if (ws.verifyCommand) testCommands.push({directory: '.', command: ws.verifyCommand, source: 'workspace.verifyCommand（配置值，尚未执行）'});
     return {workspaceId, name: ws.name, sourceCommit, existingPaths, entryPoints: [...entryPoints],
       manifests, dependencies, testCommands, proposedPaths: [], notes};
