@@ -4,9 +4,12 @@ import type {DesignInputDraft, WorkspaceInventory} from '../../../../software-de
 import type {WorkspaceEntry, ModelProviderConfig} from '../../../src/shared/types';
 import type {DesignGeneration} from '../../../../software-design/src/generator.ts';
 import {orchApi} from '../api/client';
+import {DesignReviewPanel} from './DesignReviewPanel';
+import type {DesignRevision} from '../../../../software-design/src/reviews.ts';
 
-export function DesignStart({baseline, workspaces, providers}: {
+export function DesignStart({baseline, workspaces, providers, onReturnToHama}: {
   baseline: ApprovedRequirementsBaseline; workspaces: readonly WorkspaceEntry[]; providers: readonly ModelProviderConfig[];
+  onReturnToHama: (revision: DesignRevision) => void;
 }) {
   const [workspaceId, setWorkspaceId] = useState('');
   const [inventory, setInventory] = useState<WorkspaceInventory | null>(null);
@@ -53,9 +56,6 @@ export function DesignStart({baseline, workspaces, providers}: {
     </div>
     <p className="hama-muted">先保存基线与工程输入，再选择模型起草设计正文。</p>
     {error && <p role="alert">{error}</p>}
-    {draft && <div className="hama-stack" role="status">
-      <p>已保存设计输入草案 {draft.designId} · 修订 {draft.revision} · {draft.contentSha256}</p>
-      {draft.blockers.map(b => <p key={b}>{b}</p>)}
       <label>设计模型提供商<select value={providerId} disabled={busy} onChange={e => {setProviderId(e.target.value); setModel('');}}>
         <option value="">选择已配置提供商</option>
         {validProviders.map(p => <option value={p.id} key={p.id}>{p.name}</option>)}
@@ -64,6 +64,9 @@ export function DesignStart({baseline, workspaces, providers}: {
         <datalist id="design-models">{validProviders.find(p => p.id === providerId)?.models.map(m => <option value={m.id} key={m.id} />)}</datalist>
       </label>
       <label>本次设计反馈<textarea value={feedback} disabled={busy} maxLength={6000} onChange={e => setFeedback(e.target.value)} /></label>
+    {draft && <div className="hama-stack" role="status">
+      <p>已保存设计输入草案 {draft.designId} · 修订 {draft.revision} · {draft.contentSha256}</p>
+      {draft.blockers.map(b => <p key={b}>{b}</p>)}
       <button className="btn btn-primary" disabled={busy || !model.trim() || !validProviders.some(p => p.id === providerId)} onClick={() => {
         setBusy(true); setError(''); setGeneration(null);
         void orchApi.generateDesign(draft.designId, {expectedHash: draft.contentSha256, providerId, model, feedback})
@@ -103,5 +106,6 @@ export function DesignStart({baseline, workspaces, providers}: {
         window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       }}>导出设计输入记录</button>
     </div>}
+    <DesignReviewPanel baselineId={baseline.id} generation={generation} onReturnToHama={onReturnToHama} modelSettings={{providerId, model, feedback}} />
   </div>;
 }

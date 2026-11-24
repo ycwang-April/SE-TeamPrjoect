@@ -4,6 +4,7 @@ import type {
 import type {CreateDesignInput, DesignInputDraft, WorkspaceInventory} from '../../../../software-design/src/contracts.ts';
 import type {DesignGeneration} from '../../../../software-design/src/generator.ts';
 import type {GenerationRequest} from '../../../../software-design/src/design-schema.ts';
+import type {DesignRevision, ReviewRequest} from '../../../../software-design/src/reviews.ts';
 import type {
   BootstrapSnapshot,
   ConfirmVersionRequest,
@@ -106,12 +107,17 @@ async function apiFetch<T>(
       typeof json['error'] === 'string'
         ? json['error']
         : `HTTP ${res.status} error`;
-    throw new Error(msg);
+    throw Object.assign(new Error(msg), {code: json['code'], details: json['details'], status: res.status});
   }
   return json as T;
 }
 
 export const orchApi = {
+  designHeads: (baselineId?: string) => apiFetch<DesignRevision[]>(`/api/designs${baselineId ? `?baselineId=${encodeURIComponent(baselineId)}` : ''}`),
+  designRevisions: (id: string) => apiFetch<DesignRevision[]>(`/api/designs/${id}/revisions`),
+  designRevision: (id: string, revision: number) => apiFetch<DesignRevision>(`/api/designs/${id}/revisions/${revision}`),
+  createDesignRevision: (id: string, body: unknown) => apiFetch<DesignRevision>(`/api/designs/${id}/revisions`, {method: 'POST', body}),
+  reviewDesignRevision: (id: string, revision: number, body: ReviewRequest) => apiFetch<DesignRevision>(`/api/designs/${id}/revisions/${revision}/review`, {method: 'POST', body}),
   generateDesign: (id: string, body: GenerationRequest) => apiFetch<DesignGeneration>(`/api/designs/${id}/generate`, {method: 'POST', body}),
   designGenerations: (id: string) => apiFetch<DesignGeneration[]>(`/api/designs/${id}/generations`),
   designWorkspace: (id: string) => apiFetch<WorkspaceInventory>(`/api/design-workspaces/${encodeURIComponent(id)}`),

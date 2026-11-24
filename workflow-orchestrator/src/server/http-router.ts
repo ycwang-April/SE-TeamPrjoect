@@ -15,6 +15,7 @@ import {extname, join, resolve} from 'node:path';
 import type {HamaService} from '../../../requirements-engineering/src/service.ts';
 import type {DesignService} from '../../../software-design/src/service.ts';
 import type {DesignGenerator} from '../../../software-design/src/generator.ts';
+import type {DesignReviewService} from '../../../software-design/src/reviews.ts';
 import type {CreateDesignInput} from '../../../software-design/src/contracts.ts';
 import type {ICapabilityHub} from '../adapters/contracts.ts';
 import {exportWorkflowPlan} from '../core/pm-planner.ts';
@@ -120,6 +121,7 @@ export class OrchestratorHttpServer {
   private readonly requirements?: HamaService;
   private readonly designs?: DesignService;
   private readonly designGenerator?: DesignGenerator;
+  private readonly designReviews?: DesignReviewService;
   private readonly consolidator = new CognitiveConsolidator();
   private readonly token: string;
   private readonly startedAt = new Date().toISOString();
@@ -143,6 +145,7 @@ export class OrchestratorHttpServer {
     readonly requirements?: HamaService;
     readonly designs?: DesignService;
     readonly designGenerator?: DesignGenerator;
+    readonly designReviews?: DesignReviewService;
     readonly token?: string;
     readonly staticDir?: string | null;
   }) {
@@ -156,6 +159,7 @@ export class OrchestratorHttpServer {
     this.requirements = input.requirements;
     this.designs = input.designs;
     this.designGenerator = input.designGenerator;
+    this.designReviews = input.designReviews;
     this.token = input.token ?? randomUUID().replace(/-/g, '');
     this.staticDir = input.staticDir ?? null;
   }
@@ -438,6 +442,45 @@ export class OrchestratorHttpServer {
     try {
       const method = req.method ?? 'GET';
       const requirements = this.requirements;
+      if (this.designReviews) {
+        const revisions = /^\/api\/designs\/([\w-]+)\/revisions$/.exec(path);
+        const revision = /^\/api\/designs\/([\w-]+)\/revisions\/([1-9]\d*)$/.exec(path);
+        const review = /^\/api\/designs\/([\w-]+)\/revisions\/([1-9]\d*)\/review$/.exec(path);
+        if (method === 'GET' && path === '/api/designs') {
+          this.writeJson(res, 200, this.designReviews.heads(url.searchParams.get('baselineId') ?? undefined)); return;
+        }
+        if (method === 'GET' && revisions) {
+          this.writeJson(res, 200, this.designReviews.list(revisions[1]!)); return;
+        }
+        if (method === 'GET' && revision) {
+          this.writeJson(res, 200, this.designReviews.read(revision[1]!, Number(revision[2]))); return;
+        }
+        if (method === 'POST' && review) {
+          this.writeJson(res, 200, this.designReviews.review(review[1]!, Number(review[2]), await this.readJsonBody(req))); return;
+        }
+        if (method === 'POST' && revisions) {
+          const body = asRecord(await this.readJsonBody(req));
+          if (body['parentRevision'] !== undefined) {
+            let generationId: string | undefined;
+            if (body['body'] === undefined && this.designGenerator) {
+              reqString(body, 'actor', 120);
+              reqString(body, 'reason', 6000);
+              const context = this.designReviews.generationContext(revisions[1]!, Number(body['parentRevision']), String(body['expectedHash']), body['sourceCommit']);
+              const generated = await this.designGenerator.generate(revisions[1]!, {expectedHash: context.input.contentSha256,
+                providerId: body['providerId'], model: body['model'], feedback: body['feedback'] ?? body['reason']}, context);
+              body['body'] = generated.body;
+              generationId = generated.generationId;
+            }
+            this.writeJson(res, 201, this.designReviews.revise(revisions[1]!, body, generationId));
+          }
+          else {
+            const generation = this.designGenerator?.list(revisions[1]!).find(g => g.generationId === body['generationId']);
+            if (!generation) throw new OrchestratorError('NOT_FOUND', '生成记录不存在', 404);
+            this.writeJson(res, 201, this.designReviews.createFromGeneration(generation, body));
+          }
+          return;
+        }
+      }
       const generate = /^\/api\/designs\/([\w-]+)\/generate$/.exec(path);
       const generations = /^\/api\/designs\/([\w-]+)\/generations$/.exec(path);
       if (this.designGenerator && generate && method === 'POST') {

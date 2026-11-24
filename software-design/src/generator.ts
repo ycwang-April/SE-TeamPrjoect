@@ -34,12 +34,12 @@ export class DesignGenerator {
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt)) : [];
   }
 
-  async generate(designId: string, value: unknown): Promise<DesignGeneration> {
+  async generate(designId: string, value: unknown, revisionContext?: {input: DesignInputDraft; body: DesignBody; decisions: unknown}): Promise<DesignGeneration> {
     let request: GenerationRequest;
     try {request = generationRequestSchema.parse(value);} catch (e) {
       throw new OrchestratorError('VALIDATION_ERROR', e instanceof Error ? e.message : '生成参数无效');
     }
-    const input = this.designs.read(designId);
+    const input = revisionContext?.input ?? this.designs.read(designId);
     if (request.expectedHash !== input.contentSha256 || hash({baselineRef: input.baselineRef, baseline: input.baseline, workspace: input.workspace}) !== input.contentSha256) {
       throw new OrchestratorError('CONFLICT', '设计输入摘要已变化，请重新读取输入草案', 409);
     }
@@ -67,6 +67,7 @@ export class DesignGenerator {
           JSON.stringify(designBodySchema.json),
         ].join('\n'),
         userPrompt: JSON.stringify({baseline: input.baseline, workspace: input.workspace, feedback: request.feedback,
+          ...(revisionContext ? {parentBody: revisionContext.body, reviewDecisions: revisionContext.decisions} : {}),
           previousDiagnostics: prior?.diagnostics ?? [], changes: input.baseline.prd.requirements.map(r => ({
             requirementId: r.id, kind: r.kind, priority: r.priority, dependencies: r.dependencies, constraints: r.constraints,
             triggersAndOutcomes: r.acceptance,
