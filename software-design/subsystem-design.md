@@ -1,6 +1,6 @@
 # 软件设计子系统设计说明
 
-**交付状态**　本版定义待实现的设计阶段及其与现有宿主的集成契约。当前仓库可运行的是需求基线发布、两种既有导入和 PM 编排。文中的设计服务、设计表和设计专用端点均为拟建内容。
+**职责与完成条件**　本模块把已确认 PRD 转换为指导实现的 Design Spec，经评审后提交给现有 PM Agent。PM 接收并返回与该修订一致的工作流详情和分解报告时，本次交接完成。PRD 发布、PM 分解和编排器均已有实现；下文的设计生成、设计评审、设计表与专用端点为拟建内容。
 
 ## 1. 输入与系统边界
 
@@ -14,6 +14,17 @@
 
 实现依据见 [HAMA 交接服务](../requirements-engineering/src/service.ts)、[HTTP 路由](../workflow-orchestrator/src/server/http-router.ts) 与 [Planner](../workflow-orchestrator/src/engines/planner.ts)。
 
+### PRD 中的信息如何转成设计
+
+| PRD 来源 | Design Spec 需要写出的实现信息 | 核对办法 |
+| --- | --- | --- |
+| 背景、目标和用户场景 | 系统边界、入口、调用者和可观察输出 | 沿一个场景从触发到结果走一遍，核对成功和失败路径 |
+| 功能需求、依赖和业务规则 | 负责模块、文件范围、调用契约、数据约束及其实现理由 | 每个模块引用原需求 ID；共享契约标明提供方和消费方 |
+| 非功能需求、限制和范围外事项 | 具体技术选择、适用模块、质量验证条件和排除范围 | 指标沿用已确认口径，影响范围的未知项退回澄清 |
+| Given/When/Then 及来源追踪 | 原始 AC、所属需求、验证方法、期望结果及设计补充检查 | 从 AC 反查原 PRD，保留条件、操作与结果三者的含义 |
+
+例如，若 PRD 要求“统计 UTF-8 文件中非空行数，忽略纯空白行”，设计可以选定逐行读取、按去除空白后的内容判定、向标准输出写入十进制计数。前者是上游承诺，后三项是可以评审和修改的设计决定。PM 接收的模块摘要应写明这些关键决定，并关联需求编号和目标源文件；边界条件与验收方法留在完整设计正文中。
+
 ## 2. 架构与技术选择
 
 ```mermaid
@@ -26,7 +37,8 @@ flowchart LR
   E -->|退回意见| C
   E -->|确认当前修订| F["冻结设计快照"]
   F --> G["构造 GoalSpec"]
-  G --> H["现有 PM / Twin-Graph"]
+  G --> H["既有 Planner 调用 PM Agent"]
+  H --> I["软件设计记录 PM 接收回执"]
 ```
 
 采用与需求工程相同的同仓 TypeScript 模块，接入现有 Node 宿主和 React 工作台。设计服务负责生命周期和事务，模型只返回候选内容。复用已配置的模型提供商和无工具文本调用，便于对输出做结构校验。存储采用宿主 SQLite，便于把确认决定、冻结快照和本地交接关联放入事务。保留 Markdown 渲染件用于课堂展示及人工评审，结构化快照作为机器交接依据。[模型调用实现](../requirements-engineering/src/agents.ts) · [宿主装配](../workflow-orchestrator/src/server/runtime.ts) · [工作流存储](../workflow-orchestrator/src/store/database.ts)
@@ -67,7 +79,18 @@ flowchart LR
 
 草案经过结构校验后可从 draft 转为 in_review。退回时记录 changes_requested 和逐项意见，新修订重新送审；确认时以条件更新将 in_review 转为 confirmed。确认快照只读，后续修订记录父版本及变更原因。若基线发生变化，先按稳定需求和 AC 标识对比新增、修改与删除项，再检查依赖模块和验证用例，针对新基线重新评审。旧设计仍对应原基线。
 
-**交接一致性。** 构造 GoalSpec 时将确认稿放入 rawMarkdown，写入 requirementsBaseline 的四个实际字段，复制设计的 inputs、outputs、constraints、domainRules、modules 与 assumptions。结构化交接保留 HAMA 原需求 id 和 code、原 AC id 和 code 以及 AC.requirementId；模块 relatedFrCodes 引用这些真实 code，包括 NFR。保留 PRD 原始优先级；投影到 GoalRequirement 时沿用现有 must → must、should/could → should。将设计修订关联保存在 design_handoffs，因为现有 GoalSpec 只有需求基线引用。没有业务验证证据时 AC.verified 为 false。
+### 向已实现的 PM Agent 提交
+
+正式交接适配器使用已有宿主方法 `WorkflowPlannerEngine.importStructuredRequirements(workspaceId, source)`，其中 `source` 的类型是 `Omit<GoalSpec, 'id' | 'workflowId' | 'updatedAt'>`。Planner 分配这三个字段，以 supervised 权限调用 `PmAgentDecomposer.decomposeStructural`，保存结果并返回 `WorkflowDetailSnapshot`。设计端只需实现从确认稿到 source 的映射及交接记录。[Planner 入口](../workflow-orchestrator/src/engines/planner.ts) · [PM Agent](../workflow-orchestrator/src/engines/pm-agent.ts) · [返回类型](../workflow-orchestrator/src/shared/api.ts)
+
+| 传入现有 Planner 的字段 | 转换规则 |
+| --- | --- |
+| rawMarkdown、title、goal | 传入本次确认的完整 Design Spec 正文、标题及目标 |
+| requirementsBaseline、requirements、acceptanceCriteria | 保留基线 id、projectId、revision、sha256。将 PRD 需求 id 同时用作目标 id 和 code，将原 AC id 同时用作 AC id 和 code 并填写所属 requirementId。must 映为 must，should/could 映为 should，原优先级保留在快照；verified 初值为 false |
+| modules | 传入 name、layer、summary、artifacts、relatedFrCodes。摘要写入重要契约和依赖，路径相对目标仓库，引用使用原需求 code（含 NFR）。当前类型不含独立的接口或依赖边字段，完整接口、数据与决策保存在正文 |
+| inputs、outputs、constraints、domainRules、assumptions | 从同一确认修订取值。对原 PRD 的约束、规则与设计推定保留来源差异，未确认且影响范围的问题先交还上游 |
+
+**接收证据**　先比较返回的 goalSpec.rawMarkdown、requirementsBaseline、原需求与 AC 引用，再核对 pmReport 非空、pmReport.workflowId 等于 workflow.id、detectedModules 与提交模块一致。记录设计修订、摘要、workflow.id 和 pmReport.id。PM 可按并行上限合并模块，应核对 slices 的需求与文件覆盖。工作流图的校验状态随回执展示，由编排器继续处理。
 
 拟将现有 Planner 的工作流落库与 design_handoffs 插入置于同一宿主事务，提交后再广播更新；重试先查唯一键。这样并发确认、客户端超时或服务重启后均可取回同一结果。当前 Planner 在自己的保存点写入并广播，实现时需要协调该边界。草案图未通过编排校验时保留其 draft 状态和报告，交接记录只证明草案已创建。
 
@@ -79,6 +102,6 @@ flowchart LR
 | 契约与失败处理 | 逐一核对实际边界的输入、输出、错误与副作用；涉及共享状态时补查重复操作、并发和中断后的状态 | 记录可复现的反例及受影响的验收条件，退回相应模块 |
 | 实现边界 | 模块路径落在目标工作区，新增路径标识明确，重叠写入有明确归属；关键外部依赖有核实结果 | 路径和技术假设由目标工程负责人确认，再提交评审 |
 | 冻结与返工 | 对旧摘要提交确认被拒；退回后可读取旧版、新版和逐项处理意见 | 重新读取当前版本，禁止将旧决定套用到新版 |
-| 下游交接 | 同一确认版重复导入得同一工作流；PM 报告能反查基线与设计，任务文件范围和需求引用与快照一致 | 输出差异清单；清除阻断问题后再锁版 |
+| PM 接收 | 原需求及 AC 关联完整，确认稿与回读正文一致，PM 报告可定位同一工作流和设计模块；重复交接返回原结果 | 定位到输入映射、交接关联或下游报告，保留原修订和诊断 |
 
-评审至少保留所审版本及摘要、评审人、结论、意见和复核证据。设计确认、编排锁版、业务验收分别发生在设计、规划和执行阶段，各自保留决定及证据。PM 可以按 worker 上限合并模块，评审下游结果时应比较需求与文件覆盖集合，不能以任务个数等于模块个数作为通过条件。[结构化分解](../workflow-orchestrator/src/core/pm-planner.ts)
+评审保存所审版本及摘要、评审人、结论、意见和复核证据。需求基线、确认稿与 PM 接收报告构成本阶段的验收材料。
