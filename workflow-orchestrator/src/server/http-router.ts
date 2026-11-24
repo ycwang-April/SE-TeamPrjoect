@@ -13,6 +13,8 @@ import {
 import {existsSync, readFileSync} from 'node:fs';
 import {extname, join, resolve} from 'node:path';
 import type {HamaService} from '../../../requirements-engineering/src/service.ts';
+import type {DesignService} from '../../../software-design/src/service.ts';
+import type {CreateDesignInput} from '../../../software-design/src/contracts.ts';
 import type {ICapabilityHub} from '../adapters/contracts.ts';
 import {exportWorkflowPlan} from '../core/pm-planner.ts';
 import {BUILTIN_DESIGN_SPEC_PRESETS} from '../core/presets.ts';
@@ -115,6 +117,7 @@ export class OrchestratorHttpServer {
   private readonly planner: WorkflowPlannerEngine;
   private readonly orchestrator: WorkflowOrchestratorEngine;
   private readonly requirements?: HamaService;
+  private readonly designs?: DesignService;
   private readonly consolidator = new CognitiveConsolidator();
   private readonly token: string;
   private readonly startedAt = new Date().toISOString();
@@ -136,6 +139,7 @@ export class OrchestratorHttpServer {
     readonly planner: WorkflowPlannerEngine;
     readonly orchestrator: WorkflowOrchestratorEngine;
     readonly requirements?: HamaService;
+    readonly designs?: DesignService;
     readonly token?: string;
     readonly staticDir?: string | null;
   }) {
@@ -147,6 +151,7 @@ export class OrchestratorHttpServer {
     this.planner = input.planner;
     this.orchestrator = input.orchestrator;
     this.requirements = input.requirements;
+    this.designs = input.designs;
     this.token = input.token ?? randomUUID().replace(/-/g, '');
     this.staticDir = input.staticDir ?? null;
   }
@@ -271,7 +276,7 @@ export class OrchestratorHttpServer {
       designSpecPresets: BUILTIN_DESIGN_SPEC_PRESETS,
       infraStatus: {
         opencodeGoConfigured: this.vault.getKeyStatus('opencode-go').hasApiKey,
-        defaultModel: nativeCap?.defaultModel || 'deepseek-v4.1-flash',
+        defaultModel: nativeCap?.defaultModel || 'deepseek-flash',
         proxyConfigured: isProxyConfigured(),
         gitReady: this.isGitReady(),
       },
@@ -429,6 +434,22 @@ export class OrchestratorHttpServer {
     try {
       const method = req.method ?? 'GET';
       const requirements = this.requirements;
+      if (this.designs) {
+        const workspace = /^\/api\/design-workspaces\/([\w-]+)$/.exec(path);
+        const design = /^\/api\/designs\/([\w-]+)$/.exec(path);
+        if (method === 'GET' && workspace) {
+          this.writeJson(res, 200, this.designs.inspectWorkspace(workspace[1]!));
+          return;
+        }
+        if (method === 'POST' && path === '/api/designs') {
+          this.writeJson(res, 201, this.designs.create(await this.readJsonBody(req) as CreateDesignInput));
+          return;
+        }
+        if (method === 'GET' && design) {
+          this.writeJson(res, 200, this.designs.read(design[1]!));
+          return;
+        }
+      }
       if (requirements && path.startsWith('/api/hama/')) {
         const run = /^\/api\/hama\/runs\/([\w-]+)$/.exec(path);
         const decision = /^\/api\/hama\/runs\/([\w-]+)\/gates\/([\w-]+)$/.exec(path);

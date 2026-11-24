@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {execFileSync} from 'node:child_process';
 import {existsSync, mkdtempDisposableSync} from 'node:fs';
 import {createServer} from 'node:http';
 import {tmpdir} from 'node:os';
@@ -11,6 +12,7 @@ import type {AgentRequest, Operation} from '../src/agents.ts';
 import {campusResponder} from '../src/demo.ts';
 import {renderPrd} from '../src/markdown.ts';
 import {hash} from '../src/repository.ts';
+import type {DesignInputDraft, WorkspaceInventory} from '../../software-design/src/contracts.ts';
 
 type Runtime = Awaited<ReturnType<typeof createOrchestratorRuntime>>;
 const input: StartInput = {...campusDemo, projectId: 'campus', documents: [], mode: 'demo', providerId: '', model: '',
@@ -103,6 +105,12 @@ test('demo requires human gates, resumes after restart, and publishes immutable 
     }
     assert.throws(() => runtime.store.db.prepare('UPDATE hama_baselines SET payload=? WHERE id=?')
       .run('{}', baseline.id), /immutable/);
+    const demoTarget = runtime.store.createWorkspace({name: 'Demo design target', rootPath: dataDir});
+    const demoDesign = await request<DesignInputDraft>(runtime, '/api/designs',
+      {baselineId: baseline.id, workspaceId: demoTarget.id, sourceCommit: null}, 201);
+    assert.equal(demoDesign.reviewEligible, false);
+    assert.ok(demoDesign.blockers.some(b => b.includes('演示基线')));
+    assert.deepEqual(demoDesign.baseline.conditionalApproval, baseline.conditionalApproval);
     await request(runtime, '/api/workflows/import-requirements', {baselineId: baseline.id, workspaceId: 'any'}, 409);
     await request(runtime, '/api/hama/runs', input, 409);
     const next = await request<RunView>(runtime, '/api/hama/runs', {...input, parentBaselineId: baseline.id}, 201);
@@ -235,6 +243,36 @@ test('HTTP model adapter, selective A/B/C rework, technical retry, and structure
     assert.ok(!JSON.stringify(completed).includes('local-fixture-secret'));
     const baseline = completed.baseline!;
     const workspace = runtime.store.createWorkspace({name: 'Planning target', rootPath: dataDir});
+    const concept = await request<DesignInputDraft>(runtime, '/api/designs',
+      {baselineId: baseline.id, workspaceId: workspace.id, sourceCommit: null}, 201);
+    assert.equal(concept.reviewEligible, false);
+    assert.deepEqual(concept.baseline, baseline);
+    const git = (args: string[]) => execFileSync('git', ['-C', dataDir, ...args], {encoding: 'utf8', windowsHide: true});
+    git(['init']);
+    git(['-c', 'user.name=Design Test', '-c', 'user.email=design@example.test', 'commit', '--allow-empty', '-m', 'Initial target']);
+    const commit = git(['rev-parse', 'HEAD']).trim();
+    const inventory = await request<WorkspaceInventory>(runtime, `/api/design-workspaces/${workspace.id}`);
+    assert.equal(inventory.sourceCommit, commit);
+    const workflowCount = runtime.store.listWorkflows().length;
+    const design = await request<DesignInputDraft>(runtime, '/api/designs',
+      {baselineId: baseline.id, workspaceId: workspace.id, sourceCommit: commit}, 201);
+    assert.equal(design.reviewEligible, true);
+    assert.equal(design.baselineRef.sha256, baseline.sha256);
+    assert.deepEqual(design.baseline.prd.requirements, baseline.prd.requirements);
+    assert.deepEqual(design.baseline.prd.trace, baseline.prd.trace);
+    assert.equal(runtime.store.listWorkflows().length, workflowCount);
+    assert.deepEqual(await request(runtime, `/api/designs/${design.designId}`), design);
+    await request(runtime, '/api/designs', {baselineId: 'unknown', workspaceId: workspace.id, sourceCommit: commit}, 404);
+    await request(runtime, '/api/designs', {baselineId: baseline.id, workspaceId: workspace.id, sourceCommit: '0'.repeat(40)}, 409);
+    const documentWorkspace = runtime.store.listWorkspaces().find(w => w.description === 'hama-document-workspace')!;
+    await request(runtime, '/api/designs', {baselineId: baseline.id, workspaceId: documentWorkspace.id, sourceCommit: null}, 422);
+    const sampleRequirement = design.baseline.prd.requirements[0]!;
+    const sampleAc = sampleRequirement.acceptance[0]!;
+    const trace = design.baseline.prd.trace.find(t => t.acceptanceIds.includes(sampleAc.id))!;
+    assert.equal(trace.requirementId, sampleRequirement.id);
+    assert.equal(trace.approvalId, design.baseline.approval.id);
+    assert.deepEqual(trace.proposal, design.baseline.prd.proposal);
+    assert.ok(trace.issueIds.length && trace.ideaAndDocumentIds.length);
     const next = await request<WorkflowDetailSnapshot>(runtime, '/api/workflows/import-requirements',
       {baselineId: baseline.id, workspaceId: workspace.id}, 201);
     assert.equal(next.goalSpec.requirementsBaseline?.sha256, baseline.sha256);

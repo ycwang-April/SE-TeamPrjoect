@@ -1,6 +1,7 @@
 import type {
   ApprovedRequirementsBaseline, DecisionInput, RunSummary, RunView, StartInput,
 } from '../../../../requirements-engineering/src/contracts.ts';
+import type {CreateDesignInput, DesignInputDraft, WorkspaceInventory} from '../../../../software-design/src/contracts.ts';
 import type {
   BootstrapSnapshot,
   ConfirmVersionRequest,
@@ -109,6 +110,8 @@ async function apiFetch<T>(
 }
 
 export const orchApi = {
+  designWorkspace: (id: string) => apiFetch<WorkspaceInventory>(`/api/design-workspaces/${encodeURIComponent(id)}`),
+  createDesign: (body: CreateDesignInput) => apiFetch<DesignInputDraft>('/api/designs', {method: 'POST', body}),
   getBootstrap: () => apiFetch<BootstrapSnapshot>('/api/bootstrap'),
   hamaRuns: () => apiFetch<RunSummary[]>('/api/hama/runs'),
   hamaRun: (id: string) => apiFetch<RunView>(`/api/hama/runs/${id}`),

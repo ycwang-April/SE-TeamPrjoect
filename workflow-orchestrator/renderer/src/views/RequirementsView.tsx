@@ -7,6 +7,7 @@ import {renderPrd} from '../../../../requirements-engineering/src/markdown.ts';
 import type {ModelProviderConfig, WorkspaceEntry} from '../../../src/shared/types';
 import {orchApi} from '../api/client';
 import {TwinGraphCanvas} from '../components/TwinGraphCanvas';
+import {DesignStart} from '../components/DesignStart';
 import {formatRunStatus, type UiLang} from '../i18n';
 
 const labels: Record<DecisionInput['action'], string> = {
@@ -361,6 +362,7 @@ export function RequirementsView({lang, providers, workspaces, onOpenWorkflow}: 
               id: baseline.id, parentId: baseline.parentId, revision: baseline.revision, sha256: baseline.sha256,
               approval: baseline.approval, confirmation: baseline.confirmation,
             }} />}
+            {baseline && <DesignStart key={baseline.id} baseline={baseline} workspaces={workspaces} />}
             {baseline?.mode === 'live' && <div className="hama-actions">
               <label>下游工作区<select value={targetWorkspace} onChange={event => setTargetWorkspace(event.target.value)}>
                 <option value="">选择工作区</option>

@@ -14,11 +14,13 @@
 
 **起点与交接产物**　需求工程已发布基线。完成本步后，设计服务拿到指定版本的需求事实和明确选定的目标工作区，可以独立于演示数据起草。
 
-- [ ] 在需求工程页的已发布基线旁接入“生成软件设计”。显式选择目标工程工作区并显示目标提交，向拟建的 `POST /api/designs` 提交 `baselineId、workspaceId、sourceCommit`。保留已有“导入下游编排”供原有调用方使用。点新入口只创建设计草案，创建工作流留到步骤 5。
-- [ ] 服务端按 ID 调用基线读取服务。核对 `ApprovedRequirementsBaseline` 的 schemaVersion、id、projectId、revision、sha256，读取 approvedPrd、approval、confirmation 及存在时的 conditionalApproval。绑定服务端读取的版本，避免页面切换项目后将旧 PRD 与新项目混用。
-- [ ] 读取 `prd.sections`、`prd.requirements` 和 `prd.trace`。保留 scopeKey、功能／非功能类别、原优先级、需求依赖、逐条约束，以及每条 AC 的原始 ID 和 Given/When/Then。试取一条 AC，沿需求和 trace 回查到来源议题及批准方案。
-- [ ] 按 workspaceId 解析工作区，在选定提交清点已有入口、依赖、测试命令和相对路径。新工程将拟新增路径单列；尚无提交的项目先记录概念设计，绑定初始提交后进入正式评审。演示基线可走演练，正式交接要求 live 基线及工程工作区。
-- [ ] 联调已发布基线、未知基线、源码版本不符和文档工作区四种输入。保存一份有效的“基线引用＋目标提交＋需求/AC 清单”，并确认失败响应能指出需要修正的输入。
+- [x] 在需求工程页的已发布基线旁接入“生成软件设计”。显式选择目标工程工作区并显示目标提交，向 `POST /api/designs` 提交 `baselineId、workspaceId、sourceCommit`。保留已有“导入下游编排”供原有调用方使用。点新入口只创建设计草案，创建工作流留到步骤 5。
+- [x] 服务端按 ID 调用基线读取服务。核对 `ApprovedRequirementsBaseline` 的 schemaVersion、id、projectId、revision、sha256，读取 approvedPrd、approval、confirmation 及存在时的 conditionalApproval。绑定服务端读取的版本，避免页面切换项目后将旧 PRD 与新项目混用。
+- [x] 读取 `prd.sections`、`prd.requirements` 和 `prd.trace`。保留 scopeKey、功能／非功能类别、原优先级、需求依赖、逐条约束，以及每条 AC 的原始 ID 和 Given/When/Then。试取一条 AC，沿需求和 trace 回查到来源议题及批准方案。
+- [x] 按 workspaceId 解析工作区，在选定提交清点已有入口、依赖、测试命令和相对路径。新工程将拟新增路径单列；尚无提交的项目先记录概念设计，绑定初始提交后进入正式评审。演示基线可走演练，正式交接要求 live 基线及工程工作区。
+- [x] 联调已发布基线、未知基线、源码版本不符和文档工作区四种输入。保存一份有效的“基线引用＋目标提交＋需求/AC 清单”，并确认失败响应能指出需要修正的输入。
+
+实施证据见[步骤 1 验证记录](./verify/step1-verification.md)和[有效输入样例](./verify/step1-evidence.json)。当前草案保存输入快照，正文生成在步骤 2 接入。
 
 接入依据见 [HAMA 契约](../requirements-engineering/src/contracts.ts)、[基线读取与既有交接](../requirements-engineering/src/service.ts) 和 [需求工程页](../workflow-orchestrator/renderer/src/views/RequirementsView.tsx)。
 

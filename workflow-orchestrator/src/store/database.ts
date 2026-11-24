@@ -192,7 +192,7 @@ export class OrchestratorStore {
         nativeCapRow.manifest_json,
         {},
       );
-      if (parsedCap['defaultModel'] === 'deepseek-chat') {
+      if (parsedCap['defaultModel'] === 'deepseek-chat' || parsedCap['defaultModel'] === 'deepseek-v4.1-flash') {
         this.db
           .prepare(
             'UPDATE capabilities SET manifest_json = ?, updated_at = ? WHERE id = ?',
@@ -200,7 +200,7 @@ export class OrchestratorStore {
           .run(
             JSON.stringify({
               ...parsedCap,
-              defaultModel: 'deepseek-v4.1-flash',
+              defaultModel: 'deepseek-flash',
             }),
             now,
             'native-api',

@@ -9,11 +9,11 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "dev": "node scripts/dev.mjs",
+    "dev": "node --env-file-if-exists=../.env scripts/dev.mjs",
     "build": "node scripts/build.mjs",
     "package:release": "node scripts/package-release.mjs",
-    "start": "node scripts/start.mjs",
-    "start:web": "node scripts/serve-web.mjs",
+    "start": "node --env-file-if-exists=../.env scripts/start.mjs",
+    "start:web": "node --env-file-if-exists=../.env scripts/serve-web.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
     "lint": "gts lint",
     "format": "gts fix",
