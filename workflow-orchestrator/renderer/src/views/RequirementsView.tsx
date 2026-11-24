@@ -364,7 +364,7 @@ export function RequirementsView({lang, providers, workspaces, onOpenWorkflow}: 
               id: baseline.id, parentId: baseline.parentId, revision: baseline.revision, sha256: baseline.sha256,
               approval: baseline.approval, confirmation: baseline.confirmation,
             }} />}
-            {baseline && <DesignStart key={baseline.id} baseline={baseline} workspaces={workspaces} providers={providers} onReturnToHama={revision => {
+            {baseline && <DesignStart key={baseline.id} baseline={baseline} workspaces={workspaces} providers={providers} onOpenWorkflow={onOpenWorkflow} onReturnToHama={revision => {
               setPendingHamaInput({...selected.input, projectId: revision.input.baselineRef.projectId,
                 title: revision.input.baseline.prd.title, mode: revision.input.baseline.mode, parentBaselineId: revision.input.baselineRef.id,
                 ideas: [...selected.input.ideas, ...revision.decisions.filter(d => d.action === 'request_changes' && d.scope === 'requirements')

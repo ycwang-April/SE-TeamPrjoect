@@ -6,6 +6,7 @@ import type {DesignGeneration} from '../../../../software-design/src/generator.t
 import type {GenerationRequest} from '../../../../software-design/src/design-schema.ts';
 import type {DesignRevision, ReviewRequest} from '../../../../software-design/src/reviews.ts';
 import type {DesignPmInput} from '../../../../software-design/src/pm-input.ts';
+import type {DesignHandoffReceipt} from '../../../../software-design/src/handoff.ts';
 import type {
   BootstrapSnapshot,
   ConfirmVersionRequest,
@@ -114,6 +115,11 @@ async function apiFetch<T>(
 }
 
 export const orchApi = {
+  handoffDesign: (id: string, revision: number, body: {workspaceId: string; expectedHash: string}) =>
+    apiFetch<DesignHandoffReceipt>(`/api/designs/${id}/revisions/${revision}/handoff`, {method: 'POST', body}),
+  designHandoff: (id: string, revision: number, workspaceId: string, expectedHash: string) =>
+    apiFetch<DesignHandoffReceipt>(`/api/designs/${id}/revisions/${revision}/handoff?workspaceId=${encodeURIComponent(workspaceId)}&expectedHash=${encodeURIComponent(expectedHash)}`),
+  workflowDesignHandoff: (id: string) => apiFetch<DesignHandoffReceipt>(`/api/workflows/${id}/design-handoff`),
   designPmInput: (id: string, revision: number, expectedHash: string) => apiFetch<DesignPmInput>(`/api/designs/${id}/revisions/${revision}/pm-input?expectedHash=${encodeURIComponent(expectedHash)}`),
   designHeads: (baselineId?: string) => apiFetch<DesignRevision[]>(`/api/designs${baselineId ? `?baselineId=${encodeURIComponent(baselineId)}` : ''}`),
   designRevisions: (id: string) => apiFetch<DesignRevision[]>(`/api/designs/${id}/revisions`),

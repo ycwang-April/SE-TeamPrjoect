@@ -63,6 +63,7 @@ export class WorkflowPlannerEngine {
     readonly goalSpec: GoalSpec;
     readonly report: PmDecompositionReport;
     readonly customization: WorkflowCustomization;
+    readonly deferBroadcast?: (publish: () => void) => void;
   }): WorkflowDetailSnapshot {
     const {
       workflowId,
@@ -131,7 +132,9 @@ export class WorkflowPlannerEngine {
       });
     });
 
-    this.onBroadcast('workflow.updated', workflowId, {action: 'imported'});
+    const publish = () => this.onBroadcast('workflow.updated', workflowId, {action: 'imported'});
+    if (args.deferBroadcast) args.deferBroadcast(publish);
+    else publish();
     return this.getWorkflowDetail(workflowId);
   }
 
@@ -206,6 +209,8 @@ export class WorkflowPlannerEngine {
   importStructuredRequirements(
     workspaceId: string,
     source: Omit<GoalSpec, 'id' | 'workflowId' | 'updatedAt'>,
+    // Owners of an outer transaction must queue this notification until COMMIT succeeds.
+    options?: {readonly deferBroadcast: (publish: () => void) => void},
   ): WorkflowDetailSnapshot {
     const workspace = this.store.getWorkspace(workspaceId);
     const workflowId = `wf-${randomUUID().slice(0, 8)}`;
@@ -215,7 +220,7 @@ export class WorkflowPlannerEngine {
     const {report, customization} = this.pmAgent.decomposeStructural({workflowId, goalSpec, permissionTier});
     return this.persistImportedWorkflow({
       workspaceId, workflowId, goalSpec, report, customization, permissionTier,
-      verifyCommand: workspace.verifyCommand, maxReworkIterations: 3,
+      verifyCommand: workspace.verifyCommand, maxReworkIterations: 3, deferBroadcast: options?.deferBroadcast,
     });
   }
 

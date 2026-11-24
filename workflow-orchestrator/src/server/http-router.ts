@@ -17,6 +17,7 @@ import type {DesignService} from '../../../software-design/src/service.ts';
 import type {DesignGenerator} from '../../../software-design/src/generator.ts';
 import type {DesignReviewService} from '../../../software-design/src/reviews.ts';
 import {projectConfirmedDesign} from '../../../software-design/src/pm-input.ts';
+import type {DesignHandoffService} from '../../../software-design/src/handoff.ts';
 import type {CreateDesignInput} from '../../../software-design/src/contracts.ts';
 import type {ICapabilityHub} from '../adapters/contracts.ts';
 import {exportWorkflowPlan} from '../core/pm-planner.ts';
@@ -123,6 +124,7 @@ export class OrchestratorHttpServer {
   private readonly designs?: DesignService;
   private readonly designGenerator?: DesignGenerator;
   private readonly designReviews?: DesignReviewService;
+  private readonly designHandoffs?: DesignHandoffService;
   private readonly consolidator = new CognitiveConsolidator();
   private readonly token: string;
   private readonly startedAt = new Date().toISOString();
@@ -147,6 +149,7 @@ export class OrchestratorHttpServer {
     readonly designs?: DesignService;
     readonly designGenerator?: DesignGenerator;
     readonly designReviews?: DesignReviewService;
+    readonly designHandoffs?: DesignHandoffService;
     readonly token?: string;
     readonly staticDir?: string | null;
   }) {
@@ -161,6 +164,7 @@ export class OrchestratorHttpServer {
     this.designs = input.designs;
     this.designGenerator = input.designGenerator;
     this.designReviews = input.designReviews;
+    this.designHandoffs = input.designHandoffs;
     this.token = input.token ?? randomUUID().replace(/-/g, '');
     this.staticDir = input.staticDir ?? null;
   }
@@ -443,6 +447,22 @@ export class OrchestratorHttpServer {
     try {
       const method = req.method ?? 'GET';
       const requirements = this.requirements;
+      if (this.designHandoffs) {
+        const handoff = /^\/api\/designs\/([\w-]+)\/revisions\/([1-9]\d*)\/handoff$/.exec(path);
+        const origin = /^\/api\/workflows\/([\w-]+)\/design-handoff$/.exec(path);
+        if (method === 'POST' && handoff) {
+          const result = this.designHandoffs.handoff(handoff[1]!, Number(handoff[2]), await this.readJsonBody(req));
+          this.writeJson(res, result.created ? 201 : 200, result.receipt); return;
+        }
+        if (method === 'GET' && handoff) {
+          this.writeJson(res, 200, this.designHandoffs.lookup(handoff[1]!, Number(handoff[2]), {
+            workspaceId: url.searchParams.get('workspaceId'), expectedHash: url.searchParams.get('expectedHash'),
+          })); return;
+        }
+        if (method === 'GET' && origin) {
+          this.writeJson(res, 200, this.designHandoffs.forWorkflow(origin[1]!)); return;
+        }
+      }
       if (this.designReviews) {
         const pmInput = /^\/api\/designs\/([\w-]+)\/revisions\/([1-9]\d*)\/pm-input$/.exec(path);
         if (method === 'GET' && pmInput) {

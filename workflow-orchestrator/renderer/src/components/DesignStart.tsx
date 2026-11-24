@@ -7,9 +7,10 @@ import {orchApi} from '../api/client';
 import {DesignReviewPanel} from './DesignReviewPanel';
 import type {DesignRevision} from '../../../../software-design/src/reviews.ts';
 
-export function DesignStart({baseline, workspaces, providers, onReturnToHama}: {
+export function DesignStart({baseline, workspaces, providers, onReturnToHama, onOpenWorkflow}: {
   baseline: ApprovedRequirementsBaseline; workspaces: readonly WorkspaceEntry[]; providers: readonly ModelProviderConfig[];
   onReturnToHama: (revision: DesignRevision) => void;
+  onOpenWorkflow: (id: string) => void;
 }) {
   const [workspaceId, setWorkspaceId] = useState('');
   const [inventory, setInventory] = useState<WorkspaceInventory | null>(null);
@@ -106,6 +107,6 @@ export function DesignStart({baseline, workspaces, providers, onReturnToHama}: {
         window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       }}>导出设计输入记录</button>
     </div>}
-    <DesignReviewPanel baselineId={baseline.id} generation={generation} onReturnToHama={onReturnToHama} modelSettings={{providerId, model, feedback}} />
+    <DesignReviewPanel baselineId={baseline.id} generation={generation} onReturnToHama={onReturnToHama} modelSettings={{providerId, model, feedback}} onOpenWorkflow={onOpenWorkflow} />
   </div>;
 }

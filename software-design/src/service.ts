@@ -112,4 +112,17 @@ export class DesignService {
     if (!existsSync(path)) throw new OrchestratorError('NOT_FOUND', '设计输入草案不存在', 404);
     return JSON.parse(readFileSync(path, 'utf8')) as DesignInputDraft;
   }
+
+  compareSource(workspaceId: string, expectedCommit: string) {
+    const current = this.inspectWorkspace(workspaceId);
+    const result = {expectedCommit, currentCommit: current.sourceCommit, changedPaths: [] as string[], complete: true};
+    if (current.sourceCommit === expectedCommit) return result;
+    if (!current.sourceCommit) return {...result, complete: false};
+    try {
+      result.changedPaths = execFileSync('git', ['-C', this.store.getWorkspace(workspaceId).rootPath,
+        'diff', '--name-only', '-z', '--no-renames', expectedCommit, current.sourceCommit, '--'],
+      {encoding: 'utf8', windowsHide: true, timeout: 15000, maxBuffer: 16 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe']}).split('\0').filter(Boolean);
+    } catch {result.complete = false;}
+    return result;
+  }
 }

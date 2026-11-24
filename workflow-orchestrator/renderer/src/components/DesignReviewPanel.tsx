@@ -3,9 +3,10 @@ import type {DesignRevision, ReviewRequest} from '../../../../software-design/sr
 import type {DesignGeneration} from '../../../../software-design/src/generator.ts';
 import type {DesignPmInput} from '../../../../software-design/src/pm-input.ts';
 import {orchApi} from '../api/client';
+import {DesignHandoffPanel} from './DesignHandoffPanel';
 
 const states = {draft: '草案', in_review: '评审中', changes_requested: '已退回', confirmed: '已确认（正文冻结）'};
-export function DesignReviewPanel({baselineId, generation, onReturnToHama, modelSettings}: {baselineId: string; generation: DesignGeneration | null; onReturnToHama: (revision: DesignRevision) => void; modelSettings: {providerId: string; model: string; feedback: string}}) {
+export function DesignReviewPanel({baselineId, generation, onReturnToHama, modelSettings, onOpenWorkflow}: {baselineId: string; generation: DesignGeneration | null; onReturnToHama: (revision: DesignRevision) => void; modelSettings: {providerId: string; model: string; feedback: string}; onOpenWorkflow: (id: string) => void}) {
   const [heads, setHeads] = useState<DesignRevision[]>([]);
   const [versions, setVersions] = useState<DesignRevision[]>([]);
   const [current, setCurrent] = useState<DesignRevision | null>(null);
@@ -97,6 +98,7 @@ export function DesignReviewPanel({baselineId, generation, onReturnToHama, model
       <details className="hama-details"><summary>此修订的决定记录</summary><pre>{JSON.stringify(current.decisions, null, 2)}</pre></details>
       <details className="hama-details"><summary>此修订评审稿</summary><pre>{current.reviewMarkdown}</pre></details>
       {current.state === 'confirmed' && <>
+        <DesignHandoffPanel key={`${current.designId}-${current.revision}-${current.contentSha256}`} snapshot={current} onOpenWorkflow={onOpenWorkflow} />
         <button className="btn" disabled={busy} onClick={() => void act(async () => setPmInput(await orchApi.designPmInput(current.designId, current.revision, current.contentSha256)))}>查看结构化 PM 输入</button>
         {pmInput && <>
           <p>来源：{pmInput.designRef.designId} / v{pmInput.designRef.revision} · {pmInput.designRef.contentSha256}</p>
