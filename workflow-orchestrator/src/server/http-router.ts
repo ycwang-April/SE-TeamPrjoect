@@ -16,6 +16,7 @@ import type {HamaService} from '../../../requirements-engineering/src/service.ts
 import type {DesignService} from '../../../software-design/src/service.ts';
 import type {DesignGenerator} from '../../../software-design/src/generator.ts';
 import type {DesignReviewService} from '../../../software-design/src/reviews.ts';
+import {projectConfirmedDesign} from '../../../software-design/src/pm-input.ts';
 import type {CreateDesignInput} from '../../../software-design/src/contracts.ts';
 import type {ICapabilityHub} from '../adapters/contracts.ts';
 import {exportWorkflowPlan} from '../core/pm-planner.ts';
@@ -443,6 +444,11 @@ export class OrchestratorHttpServer {
       const method = req.method ?? 'GET';
       const requirements = this.requirements;
       if (this.designReviews) {
+        const pmInput = /^\/api\/designs\/([\w-]+)\/revisions\/([1-9]\d*)\/pm-input$/.exec(path);
+        if (method === 'GET' && pmInput) {
+          this.writeJson(res, 200, projectConfirmedDesign(this.designReviews.read(pmInput[1]!, Number(pmInput[2])), url.searchParams.get('expectedHash') ?? ''));
+          return;
+        }
         const revisions = /^\/api\/designs\/([\w-]+)\/revisions$/.exec(path);
         const revision = /^\/api\/designs\/([\w-]+)\/revisions\/([1-9]\d*)$/.exec(path);
         const review = /^\/api\/designs\/([\w-]+)\/revisions\/([1-9]\d*)\/review$/.exec(path);

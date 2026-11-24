@@ -62,9 +62,11 @@
 | 已确认设计正文 | rawMarkdown、title、goal、inputs、outputs、constraints、domainRules、assumptions、modules | rawMarkdown 保存完整确认稿；模块 summary 概括主要契约与依赖，artifacts 明确目标路径，relatedFrCodes 指向原需求 code（含 NFR） |
 | 设计修订与交接 | design_handoffs | 从返回的 workflowId 可定位同一工作区中的 designId、revision 及摘要，再查到 pmReport.id |
 
-- [ ] 在映射测试中逐个比较 ID 与集合，覆盖一条需求有多个 AC、一个模块关联多个需求及一条 NFR 跨模块的情形。沿用现有投影将 must 保留为 must、should/could 映为 should，设计快照保留原优先级。
-- [ ] 为设计补充检查记录其来源与关联需求，确保与 HAMA 原始 AC 可区分。Markdown 短编号仅供人工预览和手工导入；新正式路径直接传结构化对象，以保留原始 ID 和 AC.requirementId。
-- [ ] 准备一对有依赖的模块，核对跨模块契约及依赖出现在确认稿和模块摘要中。PM 的模块类型没有依赖边字段，设计依赖保留在输入中；工作流任务和依赖边由下游编排器生成。
+- [x] 在映射测试中逐个比较 ID 与集合，覆盖一条需求有多个 AC、一个模块关联多个需求及一条 NFR 跨模块的情形。沿用现有投影将 must 保留为 must、should/could 映为 should，设计快照保留原优先级。
+- [x] 为设计补充检查记录其来源与关联需求，确保与 HAMA 原始 AC 可区分。Markdown 短编号仅供人工预览和手工导入；新正式路径直接传结构化对象，以保留原始 ID 和 AC.requirementId。
+- [x] 准备一对有依赖的模块，核对跨模块契约及依赖出现在确认稿和模块摘要中。PM 的模块类型没有依赖边字段，设计依赖保留在输入中；工作流任务和依赖边由下游编排器生成。
+
+实施证据见[步骤 4 验证记录](./verify/step4-verification.md)及[确认快照与 PM 输入样例](./verify/step4-evidence.json)。本步只投影并展示输入，创建工作流和交接回执在步骤 5 实现。
 
 ## 5. 原子交接并打开正确的工作流
 

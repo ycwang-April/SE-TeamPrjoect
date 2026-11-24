@@ -8,7 +8,14 @@ export const generationRequestSchema = object({
 });
 export type GenerationRequest = Validated<typeof generationRequestSchema>;
 
-export const designBodySchema = object({
+export const designCheckSchema = object({
+  id: string(80, 1, /^DC-[A-Za-z0-9_-]+$/),
+  source: object({kind: choice('decision', 'interface', 'quality'), id: identifier}),
+  rationale: text, requirementIds: refs, moduleIds: refs, method: text, expectedEvidence: text,
+});
+export type DesignCheck = Validated<typeof designCheckSchema>;
+const designChecksSchema = array(designCheckSchema, 0, 100);
+const baseDesignBodySchema = object({
   schemaVersion: integer(1, 1), title: string(160), goal: text,
   inputs: array(text, 1, 100), outputs: array(text, 1, 100),
   modules: array(object({
@@ -30,5 +37,19 @@ export const designBodySchema = object({
   }), 1, 100),
   unresolved: array(object({id: identifier, question: text, owner: string(160), requirementIds: refs, blocking: boolean}), 0, 100),
 });
-export type DesignBody = Validated<typeof designBodySchema>;
+export type DesignBody = Validated<typeof baseDesignBodySchema> & {designChecks?: DesignCheck[]};
+/** Optional extension: old frozen bodies keep their exact representation and digest. */
+export const designBodySchema = {
+  json: {...baseDesignBodySchema.json, properties: {
+    ...(baseDesignBodySchema.json as {properties: Record<string, unknown>}).properties,
+    designChecks: designChecksSchema.json,
+  }},
+  parse(value: unknown, path = '$'): DesignBody {
+    if (value && typeof value === 'object' && !Array.isArray(value) && Object.hasOwn(value, 'designChecks')) {
+      const {designChecks, ...base} = value as Record<string, unknown>;
+      return {...baseDesignBodySchema.parse(base, path), designChecks: designChecksSchema.parse(designChecks, `${path}.designChecks`)};
+    }
+    return baseDesignBodySchema.parse(value, path);
+  },
+};
 export interface DesignDiagnostic {path: string; code: string; message: string; severity: 'error' | 'warning'}

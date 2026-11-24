@@ -124,7 +124,8 @@ export class DesignReviewService {
     const parent = r['parent_revision'] === null ? null : this.db.prepare('SELECT body_json, source_commit FROM design_revisions WHERE design_id=? AND revision=?').get(id, Number(r['parent_revision']));
     const body = parse<DesignBody>('body_json');
     const old = parent ? JSON.parse(String(parent['body_json'])) as DesignBody : null;
-    const changedFields = old ? Object.keys(body).filter(k => hash(canonical(body[k as keyof DesignBody])) !== hash(canonical(old[k as keyof DesignBody]))) : Object.keys(body);
+    const changedFields = old ? [...new Set([...Object.keys(old), ...Object.keys(body)])].filter(k =>
+      JSON.stringify(canonical(body[k as keyof DesignBody])) !== JSON.stringify(canonical(old[k as keyof DesignBody]))) : Object.keys(body);
     const files = (b: DesignBody | null) => b?.modules.flatMap(m => m.files.map(f => f.path)) ?? [];
     return {designId: id, revision, parentRevision: r['parent_revision'] === null ? null : Number(r['parent_revision']),
       state: r['state'] as DesignState, schemaVersion: 1, input: parse('input_json'), body,
@@ -136,7 +137,7 @@ export class DesignReviewService {
         findings: JSON.parse(String(d['findings_json'])), decidedAt: String(d['decided_at']),
       })),
       handoffs: this.db.prepare('SELECT * FROM design_handoffs WHERE design_id=? AND revision=?').all(id, revision),
-      diff: {changedFields, changes: changedFields.map(field => ({field, before: old?.[field as keyof DesignBody] ?? null, after: body[field as keyof DesignBody]})),
+      diff: {changedFields, changes: changedFields.map(field => ({field, before: old?.[field as keyof DesignBody] ?? null, after: body[field as keyof DesignBody] ?? null})),
         addedFiles: files(body).filter(f => !files(old).includes(f)), removedFiles: files(old).filter(f => !files(body).includes(f)),
         targetChanged: !!parent && parent['source_commit'] !== r['source_commit']},
     };

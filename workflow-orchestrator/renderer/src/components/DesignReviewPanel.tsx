@@ -1,6 +1,7 @@
 import {useEffect, useState} from 'react';
 import type {DesignRevision, ReviewRequest} from '../../../../software-design/src/reviews.ts';
 import type {DesignGeneration} from '../../../../software-design/src/generator.ts';
+import type {DesignPmInput} from '../../../../software-design/src/pm-input.ts';
 import {orchApi} from '../api/client';
 
 const states = {draft: '草案', in_review: '评审中', changes_requested: '已退回', confirmed: '已确认（正文冻结）'};
@@ -8,6 +9,7 @@ export function DesignReviewPanel({baselineId, generation, onReturnToHama, model
   const [heads, setHeads] = useState<DesignRevision[]>([]);
   const [versions, setVersions] = useState<DesignRevision[]>([]);
   const [current, setCurrent] = useState<DesignRevision | null>(null);
+  const [pmInput, setPmInput] = useState<DesignPmInput | null>(null);
   const [actor, setActor] = useState('');
   const [reason, setReason] = useState('');
   const [scope, setScope] = useState<ReviewRequest['scope']>('technical');
@@ -20,6 +22,7 @@ export function DesignReviewPanel({baselineId, generation, onReturnToHama, model
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const select = async (id: string, revision?: number) => {
+    setPmInput(null);
     const rows = await orchApi.designRevisions(id); setVersions(rows);
     const selected = revision ? rows.find(r => r.revision === revision) : rows.at(-1);
     setCurrent(selected ?? null); setBody(JSON.stringify(selected?.body, null, 2));
@@ -88,10 +91,24 @@ export function DesignReviewPanel({baselineId, generation, onReturnToHama, model
       <p>基线 {current.input.baselineRef.id} · v{current.input.baselineRef.revision} · {current.input.baselineRef.sha256}</p>
       <p>工作区 {current.input.workspace.name} · 提交 {current.input.workspace.sourceCommit ?? '尚无提交（概念设计）'}</p>
       <details className="hama-details"><summary>需求到模块 / AC 追踪</summary><pre>{JSON.stringify(current.body.trace, null, 2)}</pre></details>
+      {!!current.body.designChecks?.length && <details className="hama-details"><summary>设计补充检查（非上游 AC）</summary><pre>{JSON.stringify(current.body.designChecks, null, 2)}</pre></details>}
       <details className="hama-details"><summary>未决项与校验</summary><pre>{JSON.stringify({unresolved: current.body.unresolved, diagnostics: current.diagnostics}, null, 2)}</pre></details>
       <details className="hama-details"><summary>与父修订的差异 / 新基线对比</summary><pre>{JSON.stringify({diff: current.diff, metadata: current.metadata}, null, 2)}</pre></details>
       <details className="hama-details"><summary>此修订的决定记录</summary><pre>{JSON.stringify(current.decisions, null, 2)}</pre></details>
       <details className="hama-details"><summary>此修订评审稿</summary><pre>{current.reviewMarkdown}</pre></details>
+      {current.state === 'confirmed' && <>
+        <button className="btn" disabled={busy} onClick={() => void act(async () => setPmInput(await orchApi.designPmInput(current.designId, current.revision, current.contentSha256)))}>查看结构化 PM 输入</button>
+        {pmInput && <>
+          <p>来源：{pmInput.designRef.designId} / v{pmInput.designRef.revision} · {pmInput.designRef.contentSha256}</p>
+          <details className="hama-details"><summary>原始需求 / AC 与 PM 字段</summary><pre>{JSON.stringify(pmInput.goalSpec, null, 2)}</pre></details>
+          <details className="hama-details"><summary>设计补充检查及模块依赖</summary><pre>{JSON.stringify({designChecks: pmInput.designChecks, moduleDependencies: pmInput.moduleDependencies}, null, 2)}</pre></details>
+          <button className="btn" onClick={() => {
+            const url = URL.createObjectURL(new Blob([JSON.stringify(pmInput, null, 2)], {type: 'application/json'}));
+            const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${pmInput.designRef.designId}-v${pmInput.designRef.revision}-pm-input.json`; anchor.click();
+            window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+          }}>导出结构化 PM 输入</button>
+        </>}
+      </>}
       <label>反馈范围<select value={scope} disabled={busy} onChange={e => setScope(e.target.value as ReviewRequest['scope'])}>
         <option value="technical">技术方案（同基线修订）</option><option value="requirements">用户目标 / 验收标准（返回 HAMA）</option>
       </select></label>

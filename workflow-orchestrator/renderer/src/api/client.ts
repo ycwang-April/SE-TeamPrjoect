@@ -5,6 +5,7 @@ import type {CreateDesignInput, DesignInputDraft, WorkspaceInventory} from '../.
 import type {DesignGeneration} from '../../../../software-design/src/generator.ts';
 import type {GenerationRequest} from '../../../../software-design/src/design-schema.ts';
 import type {DesignRevision, ReviewRequest} from '../../../../software-design/src/reviews.ts';
+import type {DesignPmInput} from '../../../../software-design/src/pm-input.ts';
 import type {
   BootstrapSnapshot,
   ConfirmVersionRequest,
@@ -113,6 +114,7 @@ async function apiFetch<T>(
 }
 
 export const orchApi = {
+  designPmInput: (id: string, revision: number, expectedHash: string) => apiFetch<DesignPmInput>(`/api/designs/${id}/revisions/${revision}/pm-input?expectedHash=${encodeURIComponent(expectedHash)}`),
   designHeads: (baselineId?: string) => apiFetch<DesignRevision[]>(`/api/designs${baselineId ? `?baselineId=${encodeURIComponent(baselineId)}` : ''}`),
   designRevisions: (id: string) => apiFetch<DesignRevision[]>(`/api/designs/${id}/revisions`),
   designRevision: (id: string, revision: number) => apiFetch<DesignRevision>(`/api/designs/${id}/revisions/${revision}`),

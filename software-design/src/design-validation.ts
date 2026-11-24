@@ -78,5 +78,24 @@ export function validateDesign(body: DesignBody, input: DesignInputDraft): Desig
     });
   }
   body.unresolved.forEach((u, i) => reqRefs(u.requirementIds, `unresolved[${i}].requirementIds`));
+  unique((body.designChecks ?? []).map(c => c.id), 'designChecks.id');
+  const upstreamAcIds = new Set(input.baseline.prd.requirements.flatMap(r => r.acceptance.map(a => a.id)));
+  (body.designChecks ?? []).forEach((c, i) => {
+    const path = `designChecks[${i}]`;
+    if (upstreamAcIds.has(c.id)) add(`${path}.id`, 'upstream_ac_collision', '设计补充检查不得使用上游 AC 编号');
+    reqRefs(c.requirementIds, `${path}.requirementIds`); modRefs(c.moduleIds, `${path}.moduleIds`);
+    unique(c.requirementIds, `${path}.requirementIds`); unique(c.moduleIds, `${path}.moduleIds`);
+    const origin = c.source.kind === 'decision' ? body.decisions.find(d => d.id === c.source.id)?.requirementIds
+      : c.source.kind === 'quality' ? body.quality.filter(q => q.requirementId === c.source.id).map(q => q.requirementId)
+      : body.interfaces.filter(api => api.id === c.source.id).flatMap(api => [api.provider, ...api.consumers]
+        .flatMap(id => modules.get(id)?.requirementIds ?? []));
+    if (!origin?.length) add(`${path}.source`, 'unknown_check_source', '补充检查必须引用本修订的真实决策、接口或质量要求');
+    else if (c.requirementIds.some(id => !origin.includes(id))) add(`${path}.requirementIds`, 'check_source_mismatch', '关联需求与补充检查的来源不一致');
+    const sourceModules = c.source.kind === 'interface' ? body.interfaces.filter(api => api.id === c.source.id).flatMap(api => [api.provider, ...api.consumers])
+      : c.source.kind === 'quality' ? body.quality.filter(q => q.requirementId === c.source.id).flatMap(q => q.moduleIds) : null;
+    if (sourceModules && c.moduleIds.some(id => !sourceModules.includes(id))) add(`${path}.moduleIds`, 'check_source_modules', '检查模块超出来源接口或质量要求的适用模块');
+    if (c.moduleIds.some(id => !modules.get(id)?.requirementIds.some(r => c.requirementIds.includes(r))) ||
+      c.requirementIds.some(r => !c.moduleIds.some(id => modules.get(id)?.requirementIds.includes(r)))) add(`${path}.moduleIds`, 'check_ownership', '补充检查的模块和关联需求缺少实现归属');
+  });
   return issues;
 }

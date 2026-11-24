@@ -26,6 +26,7 @@ export function renderDesign(body: DesignBody, input: DesignInputDraft) {
       `目标 ${input.workspace.workspaceId} / ${input.workspace.sourceCommit ?? '概念设计'}`, `范围外 ${input.baseline.prd.sections.outOfScope.join('；') || '无'}`])}`,
     ...(['modules', 'interfaces', 'quality', 'decisions', 'assumptions', 'trace', 'unresolved'] as const).map(key =>
       `## ${key}\n\n\`\`\`json\n${JSON.stringify(body[key], null, 2)}\n\`\`\``),
+    ...(body.designChecks?.length ? [`## 设计补充检查（独立于 HAMA 原始 AC）\n\n\`\`\`json\n${JSON.stringify(body.designChecks, null, 2)}\n\`\`\``] : []),
   ].join('\n\n');
   return {pmMarkdown, reviewMarkdown};
 }

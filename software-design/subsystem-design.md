@@ -63,6 +63,8 @@ flowchart LR
 
 正文含目标、输入输出、约束、领域规则、模块、接口、数据实体、追踪、验收方法、决策和假设。模块复用 `DesignSpecModule` 的六种 layer 取值（contract、backend、frontend、data、security、integration）。接口按“调用者、操作、输入、输出、失败语义”记录；持久化实体按“标识、唯一性、生命周期、事务边界”记录。每条追踪记录保存原始 requirementId、acceptanceIds、模块引用和验证方法。设计额外推导的检查单独标记来源，避免伪造上游验收编号。[下游类型](../workflow-orchestrator/src/shared/types.ts)
 
+步骤 4 已将额外检查实现为可选 `designChecks`：DC 编号、来源决策 / 接口 / 质量要求、关联需求与模块、验证方法及证据。该字段参与设计摘要和确认稿，旧确认快照不补写默认值。确认后可通过 `GET /api/designs/{id}/revisions/{rev}/pm-input?expectedHash=…` 查看纯映射结果；原始 AC 与设计检查分开保存，接口不创建工作流。实现及验证见[步骤 4 记录](./verify/step4-verification.md)。
+
 接口可以是函数、命令行、文件格式、事件或网络服务。数据可以只在一次进程执行期间存在。按需求记录适用的契约；无持久化的工具说明输入输出及生命周期即可。宿主采用的 TypeScript、React 和 SQLite 服务于工作台。目标应用的技术选型由其基线约束、已有依赖及可验证的取舍决定。新项目可从仅含初始提交的工作区起步，文件范围标为拟新增。尚无 Git 提交时先形成概念设计，绑定可复现的工作区版本后进入正式评审与交接。
 
 ## 4. 拟建接口与流转
