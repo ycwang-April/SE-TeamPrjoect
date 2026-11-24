@@ -70,10 +70,12 @@
 
 ## 5. 原子交接并打开正确的工作流
 
-- [ ] 接入 `POST /api/designs/{id}/revisions/{rev}/handoff`。校验 expectedHash、确认状态、基线模式与目标工作区。对首次交接复核目标提交；若源码已变，展示受影响范围并转回设计复核。成功交接后的网络重试应能找回原工作流。
-- [ ] 以 (designId, revision, workspaceId) 去重，使 Planner 的工作流、GoalSpec、PM 报告、图、校验结果与交接关联同时提交；在提交成功后广播更新。注入一次落库失败，确认可重试且没有遗留半套工件；并发提交两次只形成一个 workflowId。
-- [ ] 首次成功响应返回 201，重复成功请求返回 200 及同一 workflowId。前端用该 ID 打开工作流详情，展示 PM 报告、图和校验状态。若图有阻断问题，保留 draft 和具体诊断，交接记录可用于定位原设计。
-- [ ] 确认返回的 pmReport 非空且 pmReport.workflowId 等于 workflow.id；比对 detectedModules 和提交的模块，核对 slices 中的需求引用及文件覆盖。记录 pmReport.id。缺失报告或输入错配时标记交接待核查，按原键查询，避免再次创建工作流。
+- [x] 接入 `POST /api/designs/{id}/revisions/{rev}/handoff`。校验 expectedHash、确认状态、基线模式与目标工作区。对首次交接复核目标提交；若源码已变，展示受影响范围并转回设计复核。成功交接后的网络重试应能找回原工作流。
+- [x] 以 (designId, revision, workspaceId) 去重，使 Planner 的工作流、GoalSpec、PM 报告、图、校验结果与交接关联同时提交；在提交成功后广播更新。注入一次落库失败，确认可重试且没有遗留半套工件；并发提交两次只形成一个 workflowId。
+- [x] 首次成功响应返回 201，重复成功请求返回 200 及同一 workflowId。前端用该 ID 打开工作流详情，展示 PM 报告、图和校验状态。若图有阻断问题，保留 draft 和具体诊断，交接记录可用于定位原设计。
+- [x] 确认返回的 pmReport 非空且 pmReport.workflowId 等于 workflow.id；比对 detectedModules 和提交的模块，核对 slices 中的需求引用及文件覆盖。记录 pmReport.id。缺失报告或输入错配时标记交接待核查，按原键查询，避免再次创建工作流。
+
+实施证据见[步骤 5 验证记录](./verify/step5-verification.md)及[确认设计、PM 回执与源码冲突样例](./verify/step5-evidence.json)。
 
 改动涉及 [HTTP 路由](../workflow-orchestrator/src/server/http-router.ts)、[Planner 保存与广播](../workflow-orchestrator/src/engines/planner.ts)、[PM 分解](../workflow-orchestrator/src/core/pm-planner.ts) 和[工作台客户端](../workflow-orchestrator/renderer/src/api/client.ts)。
 

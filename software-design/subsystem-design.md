@@ -59,7 +59,7 @@ flowchart LR
 | --- | --- |
 | design_revisions | 主键 (designId, revision)；记录 parentRevision、baselineId、projectId、baselineRevision、baselineSha256、workspaceId、sourceCommit、schemaVersion、bodyJson、contentSha256、state、createdAt。摘要覆盖来源引用、目标版本及规范化正文，排除可变状态和决定记录 |
 | design_decisions | decisionId、designId、revision、expectedHash、actor、action、findings、decidedAt；每条发现含对象、严重度、依据、处理结果。确认事务必须匹配待审修订及其摘要 |
-| design_handoffs | (designId, revision, workspaceId) 唯一，保存 workflowId 和 createdAt；外键指向确认修订及已创建工作流 |
+| design_handoffs | (designId, revision, workspaceId) 唯一，保存 workflowId、contentSha256、pmReportId、status、diagnostics、完整首次 receipt 和 createdAt；外键及触发器指向确认修订、匹配的工作区和已创建工作流 |
 
 正文含目标、输入输出、约束、领域规则、模块、接口、数据实体、追踪、验收方法、决策和假设。模块复用 `DesignSpecModule` 的六种 layer 取值（contract、backend、frontend、data、security、integration）。接口按“调用者、操作、输入、输出、失败语义”记录；持久化实体按“标识、唯一性、生命周期、事务边界”记录。每条追踪记录保存原始 requirementId、acceptanceIds、模块引用和验证方法。设计额外推导的检查单独标记来源，避免伪造上游验收编号。[下游类型](../workflow-orchestrator/src/shared/types.ts)
 
@@ -94,7 +94,7 @@ flowchart LR
 
 **接收证据**　先比较返回的 goalSpec.rawMarkdown、requirementsBaseline、原需求与 AC 引用，再核对 pmReport 非空、pmReport.workflowId 等于 workflow.id、detectedModules 与提交模块一致。记录设计修订、摘要、workflow.id 和 pmReport.id。PM 可按并行上限合并模块，应核对 slices 的需求与文件覆盖。工作流图的校验状态随回执展示，由编排器继续处理。
 
-拟将现有 Planner 的工作流落库与 design_handoffs 插入置于同一宿主事务，提交后再广播更新；重试先查唯一键。这样并发确认、客户端超时或服务重启后均可取回同一结果。当前 Planner 在自己的保存点写入并广播，实现时需要协调该边界。草案图未通过编排校验时保留其 draft 状态和报告，交接记录只证明草案已创建。
+步骤 5 已将现有 Planner 的工作流落库与 design_handoffs 插入置于同一宿主 `BEGIN IMMEDIATE` 事务，结构化导入支持延后广播，外层 COMMIT 后才发布更新；重试先查唯一键。并发提交、客户端响应丢失或服务重启后均可取回同一工作流及原始回执。待核查记录按原键重新检查报告，不再创建工作流；已签收回执保持只读。草案图未通过编排校验时保留其 draft 状态和报告。接口、源码复核、故障回滚及验收证据见[步骤 5 记录](./verify/step5-verification.md)。
 
 ## 5. 评审和验收
 

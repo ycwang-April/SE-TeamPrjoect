@@ -1,17 +1,17 @@
 {
   "confirmedSnapshot": {
-    "designId": "design-5d30ec4e-1139-4530-97d7-09c90d49d928",
+    "designId": "design-18917893-426e-4891-ba5b-9ff942997b55",
     "revision": 1,
     "parentRevision": null,
     "state": "confirmed",
     "schemaVersion": 1,
     "input": {
-      "designId": "design-5d30ec4e-1139-4530-97d7-09c90d49d928",
+      "designId": "design-18917893-426e-4891-ba5b-9ff942997b55",
       "revision": 1,
       "state": "draft",
       "stage": "input_ready",
-      "createdAt": "2026-11-24T06:43:13.279Z",
-      "contentSha256": "5fdc033e7acf424418dad93ac4b2829037f7c2a9af7f3e6efacde6134712ad24",
+      "createdAt": "2026-11-24T06:47:38.970Z",
+      "contentSha256": "7f4c7182635e523b9448d8b9ba55d6606965828be6659ef1b51a6bea9c79e2ba",
       "baselineRef": {
         "id": "baseline-pm-line-counter",
         "projectId": "line-counter",
@@ -268,9 +268,9 @@
         "sha256": "12e116bf81cfaede9b19397707c087c71e1777ad6c3e97e03bdfc92200c6a033"
       },
       "workspace": {
-        "workspaceId": "ws-da421992",
+        "workspaceId": "ws-fe61b8cd",
         "name": "Handoff target",
-        "sourceCommit": "34b101f6e11b793edbae0c49cb92bff8dc8947fc",
+        "sourceCommit": "6e9f42072fa083d94664a0df3ee04db1189774bc",
         "existingPaths": [
           "src/service.ts"
         ],
@@ -535,8 +535,8 @@
         }
       ]
     },
-    "contentSha256": "9196b15468fa0f3fc39481a421b2a00faa5a328dc3cd08313a538f1f4368374e",
-    "createdAt": "2026-11-24T06:43:13.285Z",
+    "contentSha256": "26ab7e5f58c634e73b436bbb374ed4c81587c55f31bc5f64b69ba0b088d7ec9a",
+    "createdAt": "2026-11-24T06:47:38.977Z",
     "metadata": {
       "actor": "Designer",
       "reason": "真实 Planner 原子交接联调",
@@ -545,31 +545,31 @@
       "previousDesign": null,
       "baselineDiff": null
     },
-    "reviewMarkdown": "# 现有统计服务改造\n\n## 目标\n统计文本文件非空行数\n\n## 输入\n- UTF-8 文件路径\n\n## 输出\n- 非空行数；失败时错误消息及非零退出码\n\n## 需求\n- FR-01 [FR-count] 输入文件路径，输出非空行数 优先级 must\n- FR-02 [FR-format-options] 成功时只输出十进制行数和换行 优先级 should\n- FR-03 [NFR-bounded-memory] 流式计数时峰值内存不超过 32 MiB 优先级 could\n\n## 模块\n- 统计服务入口: 接收路径，调用计数逻辑并将结果输出；异常转为错误消息；依赖 counter；接口 count-file: countFile(path: string) → Promise<number> 非空行数；失败 文件不存在或读取失败时抛出带路径的错误；调用方返回非零退出码；覆盖 FR-01, FR-02, FR-03 (`src/service.ts`)\n- 非空行计数: 读取 UTF-8 文件，trim 后非空则计数，文件不存在时抛出错误；依赖 无；接口 count-file: countFile(path: string) → Promise<number> 非空行数；失败 文件不存在或读取失败时抛出带路径的错误；调用方返回非零退出码；覆盖 FR-01, FR-02, FR-03 (`src/count.ts`)\n\n## 约束\n- 仅本地文件\n- FR-count: 空白字符组成的行不计数\n- FR-format-options: 成功输出不带说明前缀\n- NFR-bounded-memory: 不能一次加载完整文件\n- 仅本地文件\n- 空白字符组成的行不计数\n- 成功输出不带说明前缀\n- 不能一次加载完整文件\n\n## 领域规则\n- 按换行拆分，trim 后长度为零的行不计入\n\n## 验收\n- AC-01 FR-01 [AC-count-normal] Given 文件含两行文本和一行空白; When 执行计数命令; Then 输出 2; 验证 准备：文件含两行文本和一行空白；执行：执行计数命令；对输出和资源记录断言; 证据 输出 2\n- AC-02 FR-01 [AC-count-missing] Given 文件不存在; When 执行计数命令; Then 报告文件不存在并非零退出; 验证 准备：文件不存在；执行：执行计数命令；对输出和资源记录断言; 证据 报告文件不存在并非零退出\n- AC-03 FR-02 [AC-format-zero] Given 输入为空文件; When 执行计数; Then 标准输出为 0 和换行; 验证 准备：输入为空文件；执行：执行计数；对输出和资源记录断言; 证据 标准输出为 0 和换行\n- AC-04 FR-03 [AC-memory-limit] Given 10 MiB 的 UTF-8 文件; When 采集入口和计数模块的峰值内存; Then 峰值不超过 32 MiB; 验证 准备：10 MiB 的 UTF-8 文件；执行：采集入口和计数模块的峰值内存；对输出和资源记录断言; 证据 峰值不超过 32 MiB\n\n## 假设\n- preserve-entry: 保持现有服务入口调用方式；核验 对原入口调用执行回归\n\n\n## 来源记录\n- 基线 baseline-pm-line-counter / line-counter / v1 / 12e116bf81cfaede9b19397707c087c71e1777ad6c3e97e03bdfc92200c6a033\n- 目标 ws-da421992 / 34b101f6e11b793edbae0c49cb92bff8dc8947fc\n- 范围外 无\n\n## modules\n\n```json\n[\n  {\n    \"id\": \"entry\",\n    \"name\": \"统计服务入口\",\n    \"layer\": \"integration\",\n    \"responsibility\": \"接收路径，调用计数逻辑并将结果输出；异常转为错误消息\",\n    \"inputs\": [\n      \"文件路径\"\n    ],\n    \"outputs\": [\n      \"计数结果或错误\"\n    ],\n    \"requirementIds\": [\n      \"FR-count\",\n      \"FR-format-options\",\n      \"NFR-bounded-memory\"\n    ],\n    \"dependsOn\": [\n      \"counter\"\n    ],\n    \"files\": [\n      {\n        \"path\": \"src/service.ts\",\n        \"action\": \"modify\"\n      }\n    ]\n  },\n  {\n    \"id\": \"counter\",\n    \"name\": \"非空行计数\",\n    \"layer\": \"backend\",\n    \"responsibility\": \"读取 UTF-8 文件，trim 后非空则计数，文件不存在时抛出错误\",\n    \"inputs\": [\n      \"路径\"\n    ],\n    \"outputs\": [\n      \"非负整数\"\n    ],\n    \"requirementIds\": [\n      \"FR-count\",\n      \"FR-format-options\",\n      \"NFR-bounded-memory\"\n    ],\n    \"dependsOn\": [],\n    \"files\": [\n      {\n        \"path\": \"src/count.ts\",\n        \"action\": \"create\"\n      }\n    ]\n  }\n]\n```\n\n## interfaces\n\n```json\n[\n  {\n    \"id\": \"count-file\",\n    \"provider\": \"counter\",\n    \"consumers\": [\n      \"entry\"\n    ],\n    \"kind\": \"function\",\n    \"input\": \"countFile(path: string)\",\n    \"result\": \"Promise<number> 非空行数\",\n    \"failure\": \"文件不存在或读取失败时抛出带路径的错误；调用方返回非零退出码\",\n    \"sideEffects\": \"只读取指定文件，不改动原文件\"\n  }\n]\n```\n\n## quality\n\n```json\n[\n  {\n    \"requirementId\": \"NFR-bounded-memory\",\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"method\": \"对服务入口和计数逻辑采集峰值内存\",\n    \"passCondition\": \"不超过 32 MiB\"\n  }\n]\n```\n\n## decisions\n\n```json\n[\n  {\n    \"id\": \"separate-count\",\n    \"decision\": \"分离入口与纯计数逻辑\",\n    \"rationale\": \"便于命令和服务复用及自动化验证\",\n    \"alternatives\": [\n      \"全部写在入口中\"\n    ],\n    \"requirementIds\": [\n      \"FR-count\",\n      \"FR-format-options\",\n      \"NFR-bounded-memory\"\n    ],\n    \"evidence\": [\n      \"FR-count\"\n    ]\n  }\n]\n```\n\n## assumptions\n\n```json\n[\n  {\n    \"id\": \"preserve-entry\",\n    \"text\": \"保持现有服务入口调用方式\",\n    \"requirementIds\": [\n      \"FR-count\"\n    ],\n    \"evidence\": [\n      \"src/service.ts\"\n    ],\n    \"verification\": \"对原入口调用执行回归\"\n  }\n]\n```\n\n## trace\n\n```json\n[\n  {\n    \"requirementId\": \"FR-count\",\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"acceptance\": [\n      {\n        \"acceptanceId\": \"AC-count-normal\",\n        \"method\": \"准备：文件含两行文本和一行空白；执行：执行计数命令；对输出和资源记录断言\",\n        \"expectedEvidence\": \"输出 2\"\n      },\n      {\n        \"acceptanceId\": \"AC-count-missing\",\n        \"method\": \"准备：文件不存在；执行：执行计数命令；对输出和资源记录断言\",\n        \"expectedEvidence\": \"报告文件不存在并非零退出\"\n      }\n    ]\n  },\n  {\n    \"requirementId\": \"FR-format-options\",\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"acceptance\": [\n      {\n        \"acceptanceId\": \"AC-format-zero\",\n        \"method\": \"准备：输入为空文件；执行：执行计数；对输出和资源记录断言\",\n        \"expectedEvidence\": \"标准输出为 0 和换行\"\n      }\n    ]\n  },\n  {\n    \"requirementId\": \"NFR-bounded-memory\",\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"acceptance\": [\n      {\n        \"acceptanceId\": \"AC-memory-limit\",\n        \"method\": \"准备：10 MiB 的 UTF-8 文件；执行：采集入口和计数模块的峰值内存；对输出和资源记录断言\",\n        \"expectedEvidence\": \"峰值不超过 32 MiB\"\n      }\n    ]\n  }\n]\n```\n\n## unresolved\n\n```json\n[\n  {\n    \"id\": \"future-format\",\n    \"question\": \"后续是否增加 JSON 格式（当前范围外）\",\n    \"owner\": \"产品负责人\",\n    \"requirementIds\": [\n      \"FR-format-options\"\n    ],\n    \"blocking\": false\n  }\n]\n```\n\n## 设计补充检查（独立于 HAMA 原始 AC）\n\n```json\n[\n  {\n    \"id\": \"DC-error-no-partial-output\",\n    \"source\": {\n      \"kind\": \"interface\",\n      \"id\": \"count-file\"\n    },\n    \"rationale\": \"明确读取失败时调用方行为\",\n    \"requirementIds\": [\n      \"FR-count\"\n    ],\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"method\": \"注入读取失败，核对没有部分统计值\",\n    \"expectedEvidence\": \"错误路径和非零退出码，无部分计数输出\"\n  },\n  {\n    \"id\": \"DC-shared-counting\",\n    \"source\": {\n      \"kind\": \"decision\",\n      \"id\": \"separate-count\"\n    },\n    \"rationale\": \"入口与逻辑分离后的契约回归\",\n    \"requirementIds\": [\n      \"FR-count\",\n      \"FR-format-options\"\n    ],\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"method\": \"用同一输入分别调用入口和计数逻辑\",\n    \"expectedEvidence\": \"结果一致，入口仅增加格式化换行\"\n  },\n  {\n    \"id\": \"DC-memory-observation\",\n    \"source\": {\n      \"kind\": \"quality\",\n      \"id\": \"NFR-bounded-memory\"\n    },\n    \"rationale\": \"覆盖跨模块资源观测\",\n    \"requirementIds\": [\n      \"NFR-bounded-memory\"\n    ],\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"method\": \"分别采集入口与内部实现的内存记录\",\n    \"expectedEvidence\": \"观测记录关联同一输入及模块\"\n  }\n]\n```",
+    "reviewMarkdown": "# 现有统计服务改造\n\n## 目标\n统计文本文件非空行数\n\n## 输入\n- UTF-8 文件路径\n\n## 输出\n- 非空行数；失败时错误消息及非零退出码\n\n## 需求\n- FR-01 [FR-count] 输入文件路径，输出非空行数 优先级 must\n- FR-02 [FR-format-options] 成功时只输出十进制行数和换行 优先级 should\n- FR-03 [NFR-bounded-memory] 流式计数时峰值内存不超过 32 MiB 优先级 could\n\n## 模块\n- 统计服务入口: 接收路径，调用计数逻辑并将结果输出；异常转为错误消息；依赖 counter；接口 count-file: countFile(path: string) → Promise<number> 非空行数；失败 文件不存在或读取失败时抛出带路径的错误；调用方返回非零退出码；覆盖 FR-01, FR-02, FR-03 (`src/service.ts`)\n- 非空行计数: 读取 UTF-8 文件，trim 后非空则计数，文件不存在时抛出错误；依赖 无；接口 count-file: countFile(path: string) → Promise<number> 非空行数；失败 文件不存在或读取失败时抛出带路径的错误；调用方返回非零退出码；覆盖 FR-01, FR-02, FR-03 (`src/count.ts`)\n\n## 约束\n- 仅本地文件\n- FR-count: 空白字符组成的行不计数\n- FR-format-options: 成功输出不带说明前缀\n- NFR-bounded-memory: 不能一次加载完整文件\n- 仅本地文件\n- 空白字符组成的行不计数\n- 成功输出不带说明前缀\n- 不能一次加载完整文件\n\n## 领域规则\n- 按换行拆分，trim 后长度为零的行不计入\n\n## 验收\n- AC-01 FR-01 [AC-count-normal] Given 文件含两行文本和一行空白; When 执行计数命令; Then 输出 2; 验证 准备：文件含两行文本和一行空白；执行：执行计数命令；对输出和资源记录断言; 证据 输出 2\n- AC-02 FR-01 [AC-count-missing] Given 文件不存在; When 执行计数命令; Then 报告文件不存在并非零退出; 验证 准备：文件不存在；执行：执行计数命令；对输出和资源记录断言; 证据 报告文件不存在并非零退出\n- AC-03 FR-02 [AC-format-zero] Given 输入为空文件; When 执行计数; Then 标准输出为 0 和换行; 验证 准备：输入为空文件；执行：执行计数；对输出和资源记录断言; 证据 标准输出为 0 和换行\n- AC-04 FR-03 [AC-memory-limit] Given 10 MiB 的 UTF-8 文件; When 采集入口和计数模块的峰值内存; Then 峰值不超过 32 MiB; 验证 准备：10 MiB 的 UTF-8 文件；执行：采集入口和计数模块的峰值内存；对输出和资源记录断言; 证据 峰值不超过 32 MiB\n\n## 假设\n- preserve-entry: 保持现有服务入口调用方式；核验 对原入口调用执行回归\n\n\n## 来源记录\n- 基线 baseline-pm-line-counter / line-counter / v1 / 12e116bf81cfaede9b19397707c087c71e1777ad6c3e97e03bdfc92200c6a033\n- 目标 ws-fe61b8cd / 6e9f42072fa083d94664a0df3ee04db1189774bc\n- 范围外 无\n\n## modules\n\n```json\n[\n  {\n    \"id\": \"entry\",\n    \"name\": \"统计服务入口\",\n    \"layer\": \"integration\",\n    \"responsibility\": \"接收路径，调用计数逻辑并将结果输出；异常转为错误消息\",\n    \"inputs\": [\n      \"文件路径\"\n    ],\n    \"outputs\": [\n      \"计数结果或错误\"\n    ],\n    \"requirementIds\": [\n      \"FR-count\",\n      \"FR-format-options\",\n      \"NFR-bounded-memory\"\n    ],\n    \"dependsOn\": [\n      \"counter\"\n    ],\n    \"files\": [\n      {\n        \"path\": \"src/service.ts\",\n        \"action\": \"modify\"\n      }\n    ]\n  },\n  {\n    \"id\": \"counter\",\n    \"name\": \"非空行计数\",\n    \"layer\": \"backend\",\n    \"responsibility\": \"读取 UTF-8 文件，trim 后非空则计数，文件不存在时抛出错误\",\n    \"inputs\": [\n      \"路径\"\n    ],\n    \"outputs\": [\n      \"非负整数\"\n    ],\n    \"requirementIds\": [\n      \"FR-count\",\n      \"FR-format-options\",\n      \"NFR-bounded-memory\"\n    ],\n    \"dependsOn\": [],\n    \"files\": [\n      {\n        \"path\": \"src/count.ts\",\n        \"action\": \"create\"\n      }\n    ]\n  }\n]\n```\n\n## interfaces\n\n```json\n[\n  {\n    \"id\": \"count-file\",\n    \"provider\": \"counter\",\n    \"consumers\": [\n      \"entry\"\n    ],\n    \"kind\": \"function\",\n    \"input\": \"countFile(path: string)\",\n    \"result\": \"Promise<number> 非空行数\",\n    \"failure\": \"文件不存在或读取失败时抛出带路径的错误；调用方返回非零退出码\",\n    \"sideEffects\": \"只读取指定文件，不改动原文件\"\n  }\n]\n```\n\n## quality\n\n```json\n[\n  {\n    \"requirementId\": \"NFR-bounded-memory\",\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"method\": \"对服务入口和计数逻辑采集峰值内存\",\n    \"passCondition\": \"不超过 32 MiB\"\n  }\n]\n```\n\n## decisions\n\n```json\n[\n  {\n    \"id\": \"separate-count\",\n    \"decision\": \"分离入口与纯计数逻辑\",\n    \"rationale\": \"便于命令和服务复用及自动化验证\",\n    \"alternatives\": [\n      \"全部写在入口中\"\n    ],\n    \"requirementIds\": [\n      \"FR-count\",\n      \"FR-format-options\",\n      \"NFR-bounded-memory\"\n    ],\n    \"evidence\": [\n      \"FR-count\"\n    ]\n  }\n]\n```\n\n## assumptions\n\n```json\n[\n  {\n    \"id\": \"preserve-entry\",\n    \"text\": \"保持现有服务入口调用方式\",\n    \"requirementIds\": [\n      \"FR-count\"\n    ],\n    \"evidence\": [\n      \"src/service.ts\"\n    ],\n    \"verification\": \"对原入口调用执行回归\"\n  }\n]\n```\n\n## trace\n\n```json\n[\n  {\n    \"requirementId\": \"FR-count\",\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"acceptance\": [\n      {\n        \"acceptanceId\": \"AC-count-normal\",\n        \"method\": \"准备：文件含两行文本和一行空白；执行：执行计数命令；对输出和资源记录断言\",\n        \"expectedEvidence\": \"输出 2\"\n      },\n      {\n        \"acceptanceId\": \"AC-count-missing\",\n        \"method\": \"准备：文件不存在；执行：执行计数命令；对输出和资源记录断言\",\n        \"expectedEvidence\": \"报告文件不存在并非零退出\"\n      }\n    ]\n  },\n  {\n    \"requirementId\": \"FR-format-options\",\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"acceptance\": [\n      {\n        \"acceptanceId\": \"AC-format-zero\",\n        \"method\": \"准备：输入为空文件；执行：执行计数；对输出和资源记录断言\",\n        \"expectedEvidence\": \"标准输出为 0 和换行\"\n      }\n    ]\n  },\n  {\n    \"requirementId\": \"NFR-bounded-memory\",\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"acceptance\": [\n      {\n        \"acceptanceId\": \"AC-memory-limit\",\n        \"method\": \"准备：10 MiB 的 UTF-8 文件；执行：采集入口和计数模块的峰值内存；对输出和资源记录断言\",\n        \"expectedEvidence\": \"峰值不超过 32 MiB\"\n      }\n    ]\n  }\n]\n```\n\n## unresolved\n\n```json\n[\n  {\n    \"id\": \"future-format\",\n    \"question\": \"后续是否增加 JSON 格式（当前范围外）\",\n    \"owner\": \"产品负责人\",\n    \"requirementIds\": [\n      \"FR-format-options\"\n    ],\n    \"blocking\": false\n  }\n]\n```\n\n## 设计补充检查（独立于 HAMA 原始 AC）\n\n```json\n[\n  {\n    \"id\": \"DC-error-no-partial-output\",\n    \"source\": {\n      \"kind\": \"interface\",\n      \"id\": \"count-file\"\n    },\n    \"rationale\": \"明确读取失败时调用方行为\",\n    \"requirementIds\": [\n      \"FR-count\"\n    ],\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"method\": \"注入读取失败，核对没有部分统计值\",\n    \"expectedEvidence\": \"错误路径和非零退出码，无部分计数输出\"\n  },\n  {\n    \"id\": \"DC-shared-counting\",\n    \"source\": {\n      \"kind\": \"decision\",\n      \"id\": \"separate-count\"\n    },\n    \"rationale\": \"入口与逻辑分离后的契约回归\",\n    \"requirementIds\": [\n      \"FR-count\",\n      \"FR-format-options\"\n    ],\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"method\": \"用同一输入分别调用入口和计数逻辑\",\n    \"expectedEvidence\": \"结果一致，入口仅增加格式化换行\"\n  },\n  {\n    \"id\": \"DC-memory-observation\",\n    \"source\": {\n      \"kind\": \"quality\",\n      \"id\": \"NFR-bounded-memory\"\n    },\n    \"rationale\": \"覆盖跨模块资源观测\",\n    \"requirementIds\": [\n      \"NFR-bounded-memory\"\n    ],\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"method\": \"分别采集入口与内部实现的内存记录\",\n    \"expectedEvidence\": \"观测记录关联同一输入及模块\"\n  }\n]\n```",
     "pmMarkdown": "# 现有统计服务改造\n\n## 目标\n统计文本文件非空行数\n\n## 输入\n- UTF-8 文件路径\n\n## 输出\n- 非空行数；失败时错误消息及非零退出码\n\n## 需求\n- FR-01 [FR-count] 输入文件路径，输出非空行数 优先级 must\n- FR-02 [FR-format-options] 成功时只输出十进制行数和换行 优先级 should\n- FR-03 [NFR-bounded-memory] 流式计数时峰值内存不超过 32 MiB 优先级 could\n\n## 模块\n- 统计服务入口: 接收路径，调用计数逻辑并将结果输出；异常转为错误消息；依赖 counter；接口 count-file: countFile(path: string) → Promise<number> 非空行数；失败 文件不存在或读取失败时抛出带路径的错误；调用方返回非零退出码；覆盖 FR-01, FR-02, FR-03 (`src/service.ts`)\n- 非空行计数: 读取 UTF-8 文件，trim 后非空则计数，文件不存在时抛出错误；依赖 无；接口 count-file: countFile(path: string) → Promise<number> 非空行数；失败 文件不存在或读取失败时抛出带路径的错误；调用方返回非零退出码；覆盖 FR-01, FR-02, FR-03 (`src/count.ts`)\n\n## 约束\n- 仅本地文件\n- FR-count: 空白字符组成的行不计数\n- FR-format-options: 成功输出不带说明前缀\n- NFR-bounded-memory: 不能一次加载完整文件\n- 仅本地文件\n- 空白字符组成的行不计数\n- 成功输出不带说明前缀\n- 不能一次加载完整文件\n\n## 领域规则\n- 按换行拆分，trim 后长度为零的行不计入\n\n## 验收\n- AC-01 FR-01 [AC-count-normal] Given 文件含两行文本和一行空白; When 执行计数命令; Then 输出 2; 验证 准备：文件含两行文本和一行空白；执行：执行计数命令；对输出和资源记录断言; 证据 输出 2\n- AC-02 FR-01 [AC-count-missing] Given 文件不存在; When 执行计数命令; Then 报告文件不存在并非零退出; 验证 准备：文件不存在；执行：执行计数命令；对输出和资源记录断言; 证据 报告文件不存在并非零退出\n- AC-03 FR-02 [AC-format-zero] Given 输入为空文件; When 执行计数; Then 标准输出为 0 和换行; 验证 准备：输入为空文件；执行：执行计数；对输出和资源记录断言; 证据 标准输出为 0 和换行\n- AC-04 FR-03 [AC-memory-limit] Given 10 MiB 的 UTF-8 文件; When 采集入口和计数模块的峰值内存; Then 峰值不超过 32 MiB; 验证 准备：10 MiB 的 UTF-8 文件；执行：采集入口和计数模块的峰值内存；对输出和资源记录断言; 证据 峰值不超过 32 MiB\n\n## 假设\n- preserve-entry: 保持现有服务入口调用方式；核验 对原入口调用执行回归\n",
     "diagnostics": [],
     "decisions": [
       {
-        "decisionId": "f5b8d29f-6214-4686-a907-3fdbb274a5d6",
-        "designId": "design-5d30ec4e-1139-4530-97d7-09c90d49d928",
+        "decisionId": "33a5c8d9-e2c7-4d8d-bc0b-c488e79a7706",
+        "designId": "design-18917893-426e-4891-ba5b-9ff942997b55",
         "revision": 1,
-        "expectedHash": "9196b15468fa0f3fc39481a421b2a00faa5a328dc3cd08313a538f1f4368374e",
+        "expectedHash": "26ab7e5f58c634e73b436bbb374ed4c81587c55f31bc5f64b69ba0b088d7ec9a",
         "actor": "Reviewer",
         "action": "submit",
         "scope": "technical",
         "findings": [],
-        "decidedAt": "2026-11-24T06:43:13.287Z"
+        "decidedAt": "2026-11-24T06:47:38.979Z"
       },
       {
-        "decisionId": "4f71c58d-3668-4cb7-a848-477536beb8a4",
-        "designId": "design-5d30ec4e-1139-4530-97d7-09c90d49d928",
+        "decisionId": "ba23861a-0fb7-48c7-944e-1c123d18af3c",
+        "designId": "design-18917893-426e-4891-ba5b-9ff942997b55",
         "revision": 1,
-        "expectedHash": "9196b15468fa0f3fc39481a421b2a00faa5a328dc3cd08313a538f1f4368374e",
+        "expectedHash": "26ab7e5f58c634e73b436bbb374ed4c81587c55f31bc5f64b69ba0b088d7ec9a",
         "actor": "Reviewer",
         "action": "confirm",
         "scope": "technical",
         "findings": [],
-        "decidedAt": "2026-11-24T06:43:13.289Z"
+        "decidedAt": "2026-11-24T06:47:38.981Z"
       }
     ],
     "handoffs": [],
@@ -903,21 +903,21 @@
   },
   "receipt": {
     "designRef": {
-      "designId": "design-5d30ec4e-1139-4530-97d7-09c90d49d928",
+      "designId": "design-18917893-426e-4891-ba5b-9ff942997b55",
       "revision": 1,
-      "contentSha256": "9196b15468fa0f3fc39481a421b2a00faa5a328dc3cd08313a538f1f4368374e",
-      "workspaceId": "ws-da421992",
-      "sourceCommit": "34b101f6e11b793edbae0c49cb92bff8dc8947fc"
+      "contentSha256": "26ab7e5f58c634e73b436bbb374ed4c81587c55f31bc5f64b69ba0b088d7ec9a",
+      "workspaceId": "ws-fe61b8cd",
+      "sourceCommit": "6e9f42072fa083d94664a0df3ee04db1189774bc"
     },
-    "workflowId": "wf-4d1bc045",
-    "pmReportId": "pm-55cbcdfe",
+    "workflowId": "wf-998de8ad",
+    "pmReportId": "pm-cc7049cb",
     "status": "received",
-    "createdAt": "2026-11-24T06:43:14.738Z",
+    "createdAt": "2026-11-24T06:47:40.556Z",
     "diagnostics": [],
     "workflow": {
       "workflow": {
-        "id": "wf-4d1bc045",
-        "workspaceId": "ws-da421992",
+        "id": "wf-998de8ad",
+        "workspaceId": "ws-fe61b8cd",
         "code": "WF-001",
         "title": "现有统计服务改造",
         "description": "统计文本文件非空行数",
@@ -936,13 +936,13 @@
           "pmAgentMode": "hybrid_llm",
           "budgetUsdLimit": 2.5
         },
-        "lastHumanReviewedAt": "2026-11-24T06:43:14.459Z",
+        "lastHumanReviewedAt": "2026-11-24T06:47:40.256Z",
         "spacedReviewCount": 0,
-        "createdAt": "2026-11-24T06:43:14.459Z",
-        "updatedAt": "2026-11-24T06:43:14.459Z"
+        "createdAt": "2026-11-24T06:47:40.256Z",
+        "updatedAt": "2026-11-24T06:47:40.256Z"
       },
       "goalSpec": {
-        "rawMarkdown": "# 现有统计服务改造\n\n## 目标\n统计文本文件非空行数\n\n## 输入\n- UTF-8 文件路径\n\n## 输出\n- 非空行数；失败时错误消息及非零退出码\n\n## 需求\n- FR-01 [FR-count] 输入文件路径，输出非空行数 优先级 must\n- FR-02 [FR-format-options] 成功时只输出十进制行数和换行 优先级 should\n- FR-03 [NFR-bounded-memory] 流式计数时峰值内存不超过 32 MiB 优先级 could\n\n## 模块\n- 统计服务入口: 接收路径，调用计数逻辑并将结果输出；异常转为错误消息；依赖 counter；接口 count-file: countFile(path: string) → Promise<number> 非空行数；失败 文件不存在或读取失败时抛出带路径的错误；调用方返回非零退出码；覆盖 FR-01, FR-02, FR-03 (`src/service.ts`)\n- 非空行计数: 读取 UTF-8 文件，trim 后非空则计数，文件不存在时抛出错误；依赖 无；接口 count-file: countFile(path: string) → Promise<number> 非空行数；失败 文件不存在或读取失败时抛出带路径的错误；调用方返回非零退出码；覆盖 FR-01, FR-02, FR-03 (`src/count.ts`)\n\n## 约束\n- 仅本地文件\n- FR-count: 空白字符组成的行不计数\n- FR-format-options: 成功输出不带说明前缀\n- NFR-bounded-memory: 不能一次加载完整文件\n- 仅本地文件\n- 空白字符组成的行不计数\n- 成功输出不带说明前缀\n- 不能一次加载完整文件\n\n## 领域规则\n- 按换行拆分，trim 后长度为零的行不计入\n\n## 验收\n- AC-01 FR-01 [AC-count-normal] Given 文件含两行文本和一行空白; When 执行计数命令; Then 输出 2; 验证 准备：文件含两行文本和一行空白；执行：执行计数命令；对输出和资源记录断言; 证据 输出 2\n- AC-02 FR-01 [AC-count-missing] Given 文件不存在; When 执行计数命令; Then 报告文件不存在并非零退出; 验证 准备：文件不存在；执行：执行计数命令；对输出和资源记录断言; 证据 报告文件不存在并非零退出\n- AC-03 FR-02 [AC-format-zero] Given 输入为空文件; When 执行计数; Then 标准输出为 0 和换行; 验证 准备：输入为空文件；执行：执行计数；对输出和资源记录断言; 证据 标准输出为 0 和换行\n- AC-04 FR-03 [AC-memory-limit] Given 10 MiB 的 UTF-8 文件; When 采集入口和计数模块的峰值内存; Then 峰值不超过 32 MiB; 验证 准备：10 MiB 的 UTF-8 文件；执行：采集入口和计数模块的峰值内存；对输出和资源记录断言; 证据 峰值不超过 32 MiB\n\n## 假设\n- preserve-entry: 保持现有服务入口调用方式；核验 对原入口调用执行回归\n\n\n## 来源记录\n- 基线 baseline-pm-line-counter / line-counter / v1 / 12e116bf81cfaede9b19397707c087c71e1777ad6c3e97e03bdfc92200c6a033\n- 目标 ws-da421992 / 34b101f6e11b793edbae0c49cb92bff8dc8947fc\n- 范围外 无\n\n## modules\n\n```json\n[\n  {\n    \"id\": \"entry\",\n    \"name\": \"统计服务入口\",\n    \"layer\": \"integration\",\n    \"responsibility\": \"接收路径，调用计数逻辑并将结果输出；异常转为错误消息\",\n    \"inputs\": [\n      \"文件路径\"\n    ],\n    \"outputs\": [\n      \"计数结果或错误\"\n    ],\n    \"requirementIds\": [\n      \"FR-count\",\n      \"FR-format-options\",\n      \"NFR-bounded-memory\"\n    ],\n    \"dependsOn\": [\n      \"counter\"\n    ],\n    \"files\": [\n      {\n        \"path\": \"src/service.ts\",\n        \"action\": \"modify\"\n      }\n    ]\n  },\n  {\n    \"id\": \"counter\",\n    \"name\": \"非空行计数\",\n    \"layer\": \"backend\",\n    \"responsibility\": \"读取 UTF-8 文件，trim 后非空则计数，文件不存在时抛出错误\",\n    \"inputs\": [\n      \"路径\"\n    ],\n    \"outputs\": [\n      \"非负整数\"\n    ],\n    \"requirementIds\": [\n      \"FR-count\",\n      \"FR-format-options\",\n      \"NFR-bounded-memory\"\n    ],\n    \"dependsOn\": [],\n    \"files\": [\n      {\n        \"path\": \"src/count.ts\",\n        \"action\": \"create\"\n      }\n    ]\n  }\n]\n```\n\n## interfaces\n\n```json\n[\n  {\n    \"id\": \"count-file\",\n    \"provider\": \"counter\",\n    \"consumers\": [\n      \"entry\"\n    ],\n    \"kind\": \"function\",\n    \"input\": \"countFile(path: string)\",\n    \"result\": \"Promise<number> 非空行数\",\n    \"failure\": \"文件不存在或读取失败时抛出带路径的错误；调用方返回非零退出码\",\n    \"sideEffects\": \"只读取指定文件，不改动原文件\"\n  }\n]\n```\n\n## quality\n\n```json\n[\n  {\n    \"requirementId\": \"NFR-bounded-memory\",\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"method\": \"对服务入口和计数逻辑采集峰值内存\",\n    \"passCondition\": \"不超过 32 MiB\"\n  }\n]\n```\n\n## decisions\n\n```json\n[\n  {\n    \"id\": \"separate-count\",\n    \"decision\": \"分离入口与纯计数逻辑\",\n    \"rationale\": \"便于命令和服务复用及自动化验证\",\n    \"alternatives\": [\n      \"全部写在入口中\"\n    ],\n    \"requirementIds\": [\n      \"FR-count\",\n      \"FR-format-options\",\n      \"NFR-bounded-memory\"\n    ],\n    \"evidence\": [\n      \"FR-count\"\n    ]\n  }\n]\n```\n\n## assumptions\n\n```json\n[\n  {\n    \"id\": \"preserve-entry\",\n    \"text\": \"保持现有服务入口调用方式\",\n    \"requirementIds\": [\n      \"FR-count\"\n    ],\n    \"evidence\": [\n      \"src/service.ts\"\n    ],\n    \"verification\": \"对原入口调用执行回归\"\n  }\n]\n```\n\n## trace\n\n```json\n[\n  {\n    \"requirementId\": \"FR-count\",\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"acceptance\": [\n      {\n        \"acceptanceId\": \"AC-count-normal\",\n        \"method\": \"准备：文件含两行文本和一行空白；执行：执行计数命令；对输出和资源记录断言\",\n        \"expectedEvidence\": \"输出 2\"\n      },\n      {\n        \"acceptanceId\": \"AC-count-missing\",\n        \"method\": \"准备：文件不存在；执行：执行计数命令；对输出和资源记录断言\",\n        \"expectedEvidence\": \"报告文件不存在并非零退出\"\n      }\n    ]\n  },\n  {\n    \"requirementId\": \"FR-format-options\",\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"acceptance\": [\n      {\n        \"acceptanceId\": \"AC-format-zero\",\n        \"method\": \"准备：输入为空文件；执行：执行计数；对输出和资源记录断言\",\n        \"expectedEvidence\": \"标准输出为 0 和换行\"\n      }\n    ]\n  },\n  {\n    \"requirementId\": \"NFR-bounded-memory\",\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"acceptance\": [\n      {\n        \"acceptanceId\": \"AC-memory-limit\",\n        \"method\": \"准备：10 MiB 的 UTF-8 文件；执行：采集入口和计数模块的峰值内存；对输出和资源记录断言\",\n        \"expectedEvidence\": \"峰值不超过 32 MiB\"\n      }\n    ]\n  }\n]\n```\n\n## unresolved\n\n```json\n[\n  {\n    \"id\": \"future-format\",\n    \"question\": \"后续是否增加 JSON 格式（当前范围外）\",\n    \"owner\": \"产品负责人\",\n    \"requirementIds\": [\n      \"FR-format-options\"\n    ],\n    \"blocking\": false\n  }\n]\n```\n\n## 设计补充检查（独立于 HAMA 原始 AC）\n\n```json\n[\n  {\n    \"id\": \"DC-error-no-partial-output\",\n    \"source\": {\n      \"kind\": \"interface\",\n      \"id\": \"count-file\"\n    },\n    \"rationale\": \"明确读取失败时调用方行为\",\n    \"requirementIds\": [\n      \"FR-count\"\n    ],\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"method\": \"注入读取失败，核对没有部分统计值\",\n    \"expectedEvidence\": \"错误路径和非零退出码，无部分计数输出\"\n  },\n  {\n    \"id\": \"DC-shared-counting\",\n    \"source\": {\n      \"kind\": \"decision\",\n      \"id\": \"separate-count\"\n    },\n    \"rationale\": \"入口与逻辑分离后的契约回归\",\n    \"requirementIds\": [\n      \"FR-count\",\n      \"FR-format-options\"\n    ],\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"method\": \"用同一输入分别调用入口和计数逻辑\",\n    \"expectedEvidence\": \"结果一致，入口仅增加格式化换行\"\n  },\n  {\n    \"id\": \"DC-memory-observation\",\n    \"source\": {\n      \"kind\": \"quality\",\n      \"id\": \"NFR-bounded-memory\"\n    },\n    \"rationale\": \"覆盖跨模块资源观测\",\n    \"requirementIds\": [\n      \"NFR-bounded-memory\"\n    ],\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"method\": \"分别采集入口与内部实现的内存记录\",\n    \"expectedEvidence\": \"观测记录关联同一输入及模块\"\n  }\n]\n```",
+        "rawMarkdown": "# 现有统计服务改造\n\n## 目标\n统计文本文件非空行数\n\n## 输入\n- UTF-8 文件路径\n\n## 输出\n- 非空行数；失败时错误消息及非零退出码\n\n## 需求\n- FR-01 [FR-count] 输入文件路径，输出非空行数 优先级 must\n- FR-02 [FR-format-options] 成功时只输出十进制行数和换行 优先级 should\n- FR-03 [NFR-bounded-memory] 流式计数时峰值内存不超过 32 MiB 优先级 could\n\n## 模块\n- 统计服务入口: 接收路径，调用计数逻辑并将结果输出；异常转为错误消息；依赖 counter；接口 count-file: countFile(path: string) → Promise<number> 非空行数；失败 文件不存在或读取失败时抛出带路径的错误；调用方返回非零退出码；覆盖 FR-01, FR-02, FR-03 (`src/service.ts`)\n- 非空行计数: 读取 UTF-8 文件，trim 后非空则计数，文件不存在时抛出错误；依赖 无；接口 count-file: countFile(path: string) → Promise<number> 非空行数；失败 文件不存在或读取失败时抛出带路径的错误；调用方返回非零退出码；覆盖 FR-01, FR-02, FR-03 (`src/count.ts`)\n\n## 约束\n- 仅本地文件\n- FR-count: 空白字符组成的行不计数\n- FR-format-options: 成功输出不带说明前缀\n- NFR-bounded-memory: 不能一次加载完整文件\n- 仅本地文件\n- 空白字符组成的行不计数\n- 成功输出不带说明前缀\n- 不能一次加载完整文件\n\n## 领域规则\n- 按换行拆分，trim 后长度为零的行不计入\n\n## 验收\n- AC-01 FR-01 [AC-count-normal] Given 文件含两行文本和一行空白; When 执行计数命令; Then 输出 2; 验证 准备：文件含两行文本和一行空白；执行：执行计数命令；对输出和资源记录断言; 证据 输出 2\n- AC-02 FR-01 [AC-count-missing] Given 文件不存在; When 执行计数命令; Then 报告文件不存在并非零退出; 验证 准备：文件不存在；执行：执行计数命令；对输出和资源记录断言; 证据 报告文件不存在并非零退出\n- AC-03 FR-02 [AC-format-zero] Given 输入为空文件; When 执行计数; Then 标准输出为 0 和换行; 验证 准备：输入为空文件；执行：执行计数；对输出和资源记录断言; 证据 标准输出为 0 和换行\n- AC-04 FR-03 [AC-memory-limit] Given 10 MiB 的 UTF-8 文件; When 采集入口和计数模块的峰值内存; Then 峰值不超过 32 MiB; 验证 准备：10 MiB 的 UTF-8 文件；执行：采集入口和计数模块的峰值内存；对输出和资源记录断言; 证据 峰值不超过 32 MiB\n\n## 假设\n- preserve-entry: 保持现有服务入口调用方式；核验 对原入口调用执行回归\n\n\n## 来源记录\n- 基线 baseline-pm-line-counter / line-counter / v1 / 12e116bf81cfaede9b19397707c087c71e1777ad6c3e97e03bdfc92200c6a033\n- 目标 ws-fe61b8cd / 6e9f42072fa083d94664a0df3ee04db1189774bc\n- 范围外 无\n\n## modules\n\n```json\n[\n  {\n    \"id\": \"entry\",\n    \"name\": \"统计服务入口\",\n    \"layer\": \"integration\",\n    \"responsibility\": \"接收路径，调用计数逻辑并将结果输出；异常转为错误消息\",\n    \"inputs\": [\n      \"文件路径\"\n    ],\n    \"outputs\": [\n      \"计数结果或错误\"\n    ],\n    \"requirementIds\": [\n      \"FR-count\",\n      \"FR-format-options\",\n      \"NFR-bounded-memory\"\n    ],\n    \"dependsOn\": [\n      \"counter\"\n    ],\n    \"files\": [\n      {\n        \"path\": \"src/service.ts\",\n        \"action\": \"modify\"\n      }\n    ]\n  },\n  {\n    \"id\": \"counter\",\n    \"name\": \"非空行计数\",\n    \"layer\": \"backend\",\n    \"responsibility\": \"读取 UTF-8 文件，trim 后非空则计数，文件不存在时抛出错误\",\n    \"inputs\": [\n      \"路径\"\n    ],\n    \"outputs\": [\n      \"非负整数\"\n    ],\n    \"requirementIds\": [\n      \"FR-count\",\n      \"FR-format-options\",\n      \"NFR-bounded-memory\"\n    ],\n    \"dependsOn\": [],\n    \"files\": [\n      {\n        \"path\": \"src/count.ts\",\n        \"action\": \"create\"\n      }\n    ]\n  }\n]\n```\n\n## interfaces\n\n```json\n[\n  {\n    \"id\": \"count-file\",\n    \"provider\": \"counter\",\n    \"consumers\": [\n      \"entry\"\n    ],\n    \"kind\": \"function\",\n    \"input\": \"countFile(path: string)\",\n    \"result\": \"Promise<number> 非空行数\",\n    \"failure\": \"文件不存在或读取失败时抛出带路径的错误；调用方返回非零退出码\",\n    \"sideEffects\": \"只读取指定文件，不改动原文件\"\n  }\n]\n```\n\n## quality\n\n```json\n[\n  {\n    \"requirementId\": \"NFR-bounded-memory\",\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"method\": \"对服务入口和计数逻辑采集峰值内存\",\n    \"passCondition\": \"不超过 32 MiB\"\n  }\n]\n```\n\n## decisions\n\n```json\n[\n  {\n    \"id\": \"separate-count\",\n    \"decision\": \"分离入口与纯计数逻辑\",\n    \"rationale\": \"便于命令和服务复用及自动化验证\",\n    \"alternatives\": [\n      \"全部写在入口中\"\n    ],\n    \"requirementIds\": [\n      \"FR-count\",\n      \"FR-format-options\",\n      \"NFR-bounded-memory\"\n    ],\n    \"evidence\": [\n      \"FR-count\"\n    ]\n  }\n]\n```\n\n## assumptions\n\n```json\n[\n  {\n    \"id\": \"preserve-entry\",\n    \"text\": \"保持现有服务入口调用方式\",\n    \"requirementIds\": [\n      \"FR-count\"\n    ],\n    \"evidence\": [\n      \"src/service.ts\"\n    ],\n    \"verification\": \"对原入口调用执行回归\"\n  }\n]\n```\n\n## trace\n\n```json\n[\n  {\n    \"requirementId\": \"FR-count\",\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"acceptance\": [\n      {\n        \"acceptanceId\": \"AC-count-normal\",\n        \"method\": \"准备：文件含两行文本和一行空白；执行：执行计数命令；对输出和资源记录断言\",\n        \"expectedEvidence\": \"输出 2\"\n      },\n      {\n        \"acceptanceId\": \"AC-count-missing\",\n        \"method\": \"准备：文件不存在；执行：执行计数命令；对输出和资源记录断言\",\n        \"expectedEvidence\": \"报告文件不存在并非零退出\"\n      }\n    ]\n  },\n  {\n    \"requirementId\": \"FR-format-options\",\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"acceptance\": [\n      {\n        \"acceptanceId\": \"AC-format-zero\",\n        \"method\": \"准备：输入为空文件；执行：执行计数；对输出和资源记录断言\",\n        \"expectedEvidence\": \"标准输出为 0 和换行\"\n      }\n    ]\n  },\n  {\n    \"requirementId\": \"NFR-bounded-memory\",\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"acceptance\": [\n      {\n        \"acceptanceId\": \"AC-memory-limit\",\n        \"method\": \"准备：10 MiB 的 UTF-8 文件；执行：采集入口和计数模块的峰值内存；对输出和资源记录断言\",\n        \"expectedEvidence\": \"峰值不超过 32 MiB\"\n      }\n    ]\n  }\n]\n```\n\n## unresolved\n\n```json\n[\n  {\n    \"id\": \"future-format\",\n    \"question\": \"后续是否增加 JSON 格式（当前范围外）\",\n    \"owner\": \"产品负责人\",\n    \"requirementIds\": [\n      \"FR-format-options\"\n    ],\n    \"blocking\": false\n  }\n]\n```\n\n## 设计补充检查（独立于 HAMA 原始 AC）\n\n```json\n[\n  {\n    \"id\": \"DC-error-no-partial-output\",\n    \"source\": {\n      \"kind\": \"interface\",\n      \"id\": \"count-file\"\n    },\n    \"rationale\": \"明确读取失败时调用方行为\",\n    \"requirementIds\": [\n      \"FR-count\"\n    ],\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"method\": \"注入读取失败，核对没有部分统计值\",\n    \"expectedEvidence\": \"错误路径和非零退出码，无部分计数输出\"\n  },\n  {\n    \"id\": \"DC-shared-counting\",\n    \"source\": {\n      \"kind\": \"decision\",\n      \"id\": \"separate-count\"\n    },\n    \"rationale\": \"入口与逻辑分离后的契约回归\",\n    \"requirementIds\": [\n      \"FR-count\",\n      \"FR-format-options\"\n    ],\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"method\": \"用同一输入分别调用入口和计数逻辑\",\n    \"expectedEvidence\": \"结果一致，入口仅增加格式化换行\"\n  },\n  {\n    \"id\": \"DC-memory-observation\",\n    \"source\": {\n      \"kind\": \"quality\",\n      \"id\": \"NFR-bounded-memory\"\n    },\n    \"rationale\": \"覆盖跨模块资源观测\",\n    \"requirementIds\": [\n      \"NFR-bounded-memory\"\n    ],\n    \"moduleIds\": [\n      \"entry\",\n      \"counter\"\n    ],\n    \"method\": \"分别采集入口与内部实现的内存记录\",\n    \"expectedEvidence\": \"观测记录关联同一输入及模块\"\n  }\n]\n```",
         "title": "现有统计服务改造",
         "goal": "统计文本文件非空行数",
         "requirementsBaseline": {
@@ -1070,18 +1070,18 @@
             "summary": "模块 counter：读取 UTF-8 文件，trim 后非空则计数，文件不存在时抛出错误\n输入：路径\n输出：非负整数\n依赖：无\n接口 count-file [function]；提供方 counter；消费方 entry；输入 countFile(path: string)；结果 Promise<number> 非空行数；失败 文件不存在或读取失败时抛出带路径的错误；调用方返回非零退出码；副作用 只读取指定文件，不改动原文件\n文件动作：create src/count.ts\n质量要求 NFR-bounded-memory：对服务入口和计数逻辑采集峰值内存；通过条件 不超过 32 MiB\n设计补充检查 DC-error-no-partial-output（非原始 AC，来源 interface:count-file，关联需求 FR-count）：注入读取失败，核对没有部分统计值；证据 错误路径和非零退出码，无部分计数输出\n设计补充检查 DC-shared-counting（非原始 AC，来源 decision:separate-count，关联需求 FR-count, FR-format-options）：用同一输入分别调用入口和计数逻辑；证据 结果一致，入口仅增加格式化换行\n设计补充检查 DC-memory-observation（非原始 AC，来源 quality:NFR-bounded-memory，关联需求 NFR-bounded-memory）：分别采集入口与内部实现的内存记录；证据 观测记录关联同一输入及模块"
           }
         ],
-        "id": "goal-wf-4d1bc045",
-        "workflowId": "wf-4d1bc045",
-        "updatedAt": "2026-11-24T06:43:14.458Z"
+        "id": "goal-wf-998de8ad",
+        "workflowId": "wf-998de8ad",
+        "updatedAt": "2026-11-24T06:47:40.255Z"
       },
       "nodes": [
         {
-          "id": "p1-8f199b4c",
-          "scopeId": "wf-4d1bc045",
+          "id": "p1-9019751e",
+          "scopeId": "wf-998de8ad",
           "code": "P1",
           "parentWbsId": null,
           "containerNodeId": null,
-          "phaseId": "p1-8f199b4c",
+          "phaseId": "p1-9019751e",
           "phaseTitle": "Phase 1 · Design Spec & Contract Plan",
           "depth": 0,
           "kind": "phase_container",
@@ -1111,15 +1111,15 @@
           "height": 174,
           "outputSummary": "",
           "restoreTargetCheckpointId": null,
-          "updatedAt": "2026-11-24T06:43:14.459Z"
+          "updatedAt": "2026-11-24T06:47:40.256Z"
         },
         {
-          "id": "p2-be5a9caf",
-          "scopeId": "wf-4d1bc045",
+          "id": "p2-4315909f",
+          "scopeId": "wf-998de8ad",
           "code": "P2",
           "parentWbsId": null,
           "containerNodeId": null,
-          "phaseId": "p2-be5a9caf",
+          "phaseId": "p2-4315909f",
           "phaseTitle": "Phase 2 · Parallel PM Task Execution",
           "depth": 0,
           "kind": "phase_container",
@@ -1150,15 +1150,15 @@
           "height": 424,
           "outputSummary": "",
           "restoreTargetCheckpointId": null,
-          "updatedAt": "2026-11-24T06:43:14.459Z"
+          "updatedAt": "2026-11-24T06:47:40.256Z"
         },
         {
-          "id": "p3-efad3477",
-          "scopeId": "wf-4d1bc045",
+          "id": "p3-6bd03fba",
+          "scopeId": "wf-998de8ad",
           "code": "P3",
           "parentWbsId": null,
           "containerNodeId": null,
-          "phaseId": "p3-efad3477",
+          "phaseId": "p3-6bd03fba",
           "phaseTitle": "Phase 3 · Verification & Recovery",
           "depth": 0,
           "kind": "phase_container",
@@ -1190,15 +1190,15 @@
           "height": 320,
           "outputSummary": "",
           "restoreTargetCheckpointId": null,
-          "updatedAt": "2026-11-24T06:43:14.459Z"
+          "updatedAt": "2026-11-24T06:47:40.256Z"
         },
         {
-          "id": "start-aac8feea",
-          "scopeId": "wf-4d1bc045",
+          "id": "start-c0e4dfd6",
+          "scopeId": "wf-998de8ad",
           "code": "START",
-          "parentWbsId": "p1-8f199b4c",
-          "containerNodeId": "p1-8f199b4c",
-          "phaseId": "p1-8f199b4c",
+          "parentWbsId": "p1-9019751e",
+          "containerNodeId": "p1-9019751e",
+          "phaseId": "p1-9019751e",
           "phaseTitle": "Phase 1 · Design Spec & Contract Plan",
           "depth": 1,
           "kind": "start",
@@ -1227,15 +1227,15 @@
           "height": 72,
           "outputSummary": "",
           "restoreTargetCheckpointId": null,
-          "updatedAt": "2026-11-24T06:43:14.459Z"
+          "updatedAt": "2026-11-24T06:47:40.256Z"
         },
         {
-          "id": "p1t1-33b48fbb",
-          "scopeId": "wf-4d1bc045",
+          "id": "p1t1-f3640ebd",
+          "scopeId": "wf-998de8ad",
           "code": "P1.T1",
-          "parentWbsId": "p1-8f199b4c",
-          "containerNodeId": "p1-8f199b4c",
-          "phaseId": "p1-8f199b4c",
+          "parentWbsId": "p1-9019751e",
+          "containerNodeId": "p1-9019751e",
+          "phaseId": "p1-9019751e",
           "phaseTitle": "Phase 1 · Design Spec & Contract Plan",
           "depth": 1,
           "kind": "task",
@@ -1268,11 +1268,11 @@
           "height": 72,
           "outputSummary": "",
           "restoreTargetCheckpointId": null,
-          "updatedAt": "2026-11-24T06:43:14.459Z"
+          "updatedAt": "2026-11-24T06:47:40.256Z"
         },
         {
-          "id": "p1ckpt-76eeaae2",
-          "scopeId": "wf-4d1bc045",
+          "id": "p1ckpt-d7a1151b",
+          "scopeId": "wf-998de8ad",
           "code": "P1.CKPT",
           "parentWbsId": null,
           "containerNodeId": null,
@@ -1305,15 +1305,15 @@
           "height": 68,
           "outputSummary": "",
           "restoreTargetCheckpointId": null,
-          "updatedAt": "2026-11-24T06:43:14.459Z"
+          "updatedAt": "2026-11-24T06:47:40.256Z"
         },
         {
-          "id": "p2t1-cc872294",
-          "scopeId": "wf-4d1bc045",
+          "id": "p2t1-80c72d00",
+          "scopeId": "wf-998de8ad",
           "code": "P2.T1",
-          "parentWbsId": "p2-be5a9caf",
-          "containerNodeId": "p2-be5a9caf",
-          "phaseId": "p2-be5a9caf",
+          "parentWbsId": "p2-4315909f",
+          "containerNodeId": "p2-4315909f",
+          "phaseId": "p2-4315909f",
           "phaseTitle": "Phase 2 · Parallel PM Task Execution",
           "depth": 1,
           "kind": "task",
@@ -1346,15 +1346,15 @@
           "height": 76,
           "outputSummary": "",
           "restoreTargetCheckpointId": null,
-          "updatedAt": "2026-11-24T06:43:14.459Z"
+          "updatedAt": "2026-11-24T06:47:40.256Z"
         },
         {
-          "id": "p2t2-07ea633a",
-          "scopeId": "wf-4d1bc045",
+          "id": "p2t2-1e3c7a05",
+          "scopeId": "wf-998de8ad",
           "code": "P2.T2",
-          "parentWbsId": "p2-be5a9caf",
-          "containerNodeId": "p2-be5a9caf",
-          "phaseId": "p2-be5a9caf",
+          "parentWbsId": "p2-4315909f",
+          "containerNodeId": "p2-4315909f",
+          "phaseId": "p2-4315909f",
           "phaseTitle": "Phase 2 · Parallel PM Task Execution",
           "depth": 1,
           "kind": "task",
@@ -1387,15 +1387,15 @@
           "height": 76,
           "outputSummary": "",
           "restoreTargetCheckpointId": null,
-          "updatedAt": "2026-11-24T06:43:14.459Z"
+          "updatedAt": "2026-11-24T06:47:40.256Z"
         },
         {
-          "id": "p2d1-ea15c7bb",
-          "scopeId": "wf-4d1bc045",
+          "id": "p2d1-242fb90f",
+          "scopeId": "wf-998de8ad",
           "code": "P2.D1",
-          "parentWbsId": "p2-be5a9caf",
-          "containerNodeId": "p2-be5a9caf",
-          "phaseId": "p2-be5a9caf",
+          "parentWbsId": "p2-4315909f",
+          "containerNodeId": "p2-4315909f",
+          "phaseId": "p2-4315909f",
           "phaseTitle": "Phase 2 · Parallel PM Task Execution",
           "depth": 1,
           "kind": "decision",
@@ -1424,15 +1424,15 @@
           "height": 76,
           "outputSummary": "",
           "restoreTargetCheckpointId": null,
-          "updatedAt": "2026-11-24T06:43:14.459Z"
+          "updatedAt": "2026-11-24T06:47:40.256Z"
         },
         {
-          "id": "p2std-744d8b41",
-          "scopeId": "wf-4d1bc045",
+          "id": "p2std-c60ce502",
+          "scopeId": "wf-998de8ad",
           "code": "P2.STD",
-          "parentWbsId": "p2-be5a9caf",
-          "containerNodeId": "p2-be5a9caf",
-          "phaseId": "p2-be5a9caf",
+          "parentWbsId": "p2-4315909f",
+          "containerNodeId": "p2-4315909f",
+          "phaseId": "p2-4315909f",
           "phaseTitle": "Phase 2 · Parallel PM Task Execution",
           "depth": 1,
           "kind": "task",
@@ -1463,15 +1463,15 @@
           "height": 76,
           "outputSummary": "",
           "restoreTargetCheckpointId": null,
-          "updatedAt": "2026-11-24T06:43:14.459Z"
+          "updatedAt": "2026-11-24T06:47:40.256Z"
         },
         {
-          "id": "p2ext-537737de",
-          "scopeId": "wf-4d1bc045",
+          "id": "p2ext-6e238b47",
+          "scopeId": "wf-998de8ad",
           "code": "P2.EXT",
-          "parentWbsId": "p2-be5a9caf",
-          "containerNodeId": "p2-be5a9caf",
-          "phaseId": "p2-be5a9caf",
+          "parentWbsId": "p2-4315909f",
+          "containerNodeId": "p2-4315909f",
+          "phaseId": "p2-4315909f",
           "phaseTitle": "Phase 2 · Parallel PM Task Execution",
           "depth": 1,
           "kind": "task",
@@ -1502,15 +1502,15 @@
           "height": 76,
           "outputSummary": "",
           "restoreTargetCheckpointId": null,
-          "updatedAt": "2026-11-24T06:43:14.459Z"
+          "updatedAt": "2026-11-24T06:47:40.256Z"
         },
         {
-          "id": "p2sec-e947957f",
-          "scopeId": "wf-4d1bc045",
+          "id": "p2sec-24933698",
+          "scopeId": "wf-998de8ad",
           "code": "P2.SEC",
-          "parentWbsId": "p2-be5a9caf",
-          "containerNodeId": "p2-be5a9caf",
-          "phaseId": "p2-be5a9caf",
+          "parentWbsId": "p2-4315909f",
+          "containerNodeId": "p2-4315909f",
+          "phaseId": "p2-4315909f",
           "phaseTitle": "Phase 2 · Parallel PM Task Execution",
           "depth": 1,
           "kind": "task",
@@ -1541,15 +1541,15 @@
           "height": 76,
           "outputSummary": "",
           "restoreTargetCheckpointId": null,
-          "updatedAt": "2026-11-24T06:43:14.459Z"
+          "updatedAt": "2026-11-24T06:47:40.256Z"
         },
         {
-          "id": "p2join-973ad3ee",
-          "scopeId": "wf-4d1bc045",
+          "id": "p2join-46055a43",
+          "scopeId": "wf-998de8ad",
           "code": "P2.JOIN",
-          "parentWbsId": "p2-be5a9caf",
-          "containerNodeId": "p2-be5a9caf",
-          "phaseId": "p2-be5a9caf",
+          "parentWbsId": "p2-4315909f",
+          "containerNodeId": "p2-4315909f",
+          "phaseId": "p2-4315909f",
           "phaseTitle": "Phase 2 · Parallel PM Task Execution",
           "depth": 1,
           "kind": "join",
@@ -1580,11 +1580,11 @@
           "height": 76,
           "outputSummary": "",
           "restoreTargetCheckpointId": null,
-          "updatedAt": "2026-11-24T06:43:14.459Z"
+          "updatedAt": "2026-11-24T06:47:40.256Z"
         },
         {
-          "id": "p2ckpt-0de3aff4",
-          "scopeId": "wf-4d1bc045",
+          "id": "p2ckpt-ed1a36fd",
+          "scopeId": "wf-998de8ad",
           "code": "P2.CKPT",
           "parentWbsId": null,
           "containerNodeId": null,
@@ -1619,15 +1619,15 @@
           "height": 68,
           "outputSummary": "",
           "restoreTargetCheckpointId": null,
-          "updatedAt": "2026-11-24T06:43:14.459Z"
+          "updatedAt": "2026-11-24T06:47:40.256Z"
         },
         {
-          "id": "p3gate-a8a66247",
-          "scopeId": "wf-4d1bc045",
+          "id": "p3gate-1a6d4b39",
+          "scopeId": "wf-998de8ad",
           "code": "P3.GATE",
-          "parentWbsId": "p3-efad3477",
-          "containerNodeId": "p3-efad3477",
-          "phaseId": "p3-efad3477",
+          "parentWbsId": "p3-6bd03fba",
+          "containerNodeId": "p3-6bd03fba",
+          "phaseId": "p3-6bd03fba",
           "phaseTitle": "Phase 3 · Verification & Recovery",
           "depth": 1,
           "kind": "gate_shell",
@@ -1659,15 +1659,15 @@
           "height": 74,
           "outputSummary": "",
           "restoreTargetCheckpointId": null,
-          "updatedAt": "2026-11-24T06:43:14.459Z"
+          "updatedAt": "2026-11-24T06:47:40.256Z"
         },
         {
-          "id": "p3sc-3233eefd",
-          "scopeId": "wf-4d1bc045",
+          "id": "p3sc-396b6c35",
+          "scopeId": "wf-998de8ad",
           "code": "P3.SC",
-          "parentWbsId": "p3-efad3477",
-          "containerNodeId": "p3-efad3477",
-          "phaseId": "p3-efad3477",
+          "parentWbsId": "p3-6bd03fba",
+          "containerNodeId": "p3-6bd03fba",
+          "phaseId": "p3-6bd03fba",
           "phaseTitle": "Phase 3 · Verification & Recovery",
           "depth": 1,
           "kind": "selfcheck",
@@ -1699,15 +1699,15 @@
           "height": 74,
           "outputSummary": "",
           "restoreTargetCheckpointId": null,
-          "updatedAt": "2026-11-24T06:43:14.459Z"
+          "updatedAt": "2026-11-24T06:47:40.256Z"
         },
         {
-          "id": "p3qa-94dcef35",
-          "scopeId": "wf-4d1bc045",
+          "id": "p3qa-7918dfed",
+          "scopeId": "wf-998de8ad",
           "code": "P3.QA",
-          "parentWbsId": "p3-efad3477",
-          "containerNodeId": "p3-efad3477",
-          "phaseId": "p3-efad3477",
+          "parentWbsId": "p3-6bd03fba",
+          "containerNodeId": "p3-6bd03fba",
+          "phaseId": "p3-6bd03fba",
           "phaseTitle": "Phase 3 · Verification & Recovery",
           "depth": 1,
           "kind": "qa_audit",
@@ -1739,15 +1739,15 @@
           "height": 74,
           "outputSummary": "",
           "restoreTargetCheckpointId": null,
-          "updatedAt": "2026-11-24T06:43:14.459Z"
+          "updatedAt": "2026-11-24T06:47:40.256Z"
         },
         {
-          "id": "p3ckpt-e40ef82d",
-          "scopeId": "wf-4d1bc045",
+          "id": "p3ckpt-736c2fd2",
+          "scopeId": "wf-998de8ad",
           "code": "P3.CKPT",
-          "parentWbsId": "p3-efad3477",
-          "containerNodeId": "p3-efad3477",
-          "phaseId": "p3-efad3477",
+          "parentWbsId": "p3-6bd03fba",
+          "containerNodeId": "p3-6bd03fba",
+          "phaseId": "p3-6bd03fba",
           "phaseTitle": "Phase 3 · Verification & Recovery",
           "depth": 1,
           "kind": "checkpoint",
@@ -1776,15 +1776,15 @@
           "height": 74,
           "outputSummary": "",
           "restoreTargetCheckpointId": null,
-          "updatedAt": "2026-11-24T06:43:14.459Z"
+          "updatedAt": "2026-11-24T06:47:40.256Z"
         },
         {
-          "id": "p3rst-a6056542",
-          "scopeId": "wf-4d1bc045",
+          "id": "p3rst-449af6a4",
+          "scopeId": "wf-998de8ad",
           "code": "P3.RST",
-          "parentWbsId": "p3-efad3477",
-          "containerNodeId": "p3-efad3477",
-          "phaseId": "p3-efad3477",
+          "parentWbsId": "p3-6bd03fba",
+          "containerNodeId": "p3-6bd03fba",
+          "phaseId": "p3-6bd03fba",
           "phaseTitle": "Phase 3 · Verification & Recovery",
           "depth": 1,
           "kind": "restore",
@@ -1813,15 +1813,15 @@
           "height": 74,
           "outputSummary": "",
           "restoreTargetCheckpointId": null,
-          "updatedAt": "2026-11-24T06:43:14.459Z"
+          "updatedAt": "2026-11-24T06:47:40.256Z"
         },
         {
-          "id": "p3done-b24ac0ce",
-          "scopeId": "wf-4d1bc045",
+          "id": "p3done-5951a034",
+          "scopeId": "wf-998de8ad",
           "code": "DONE",
-          "parentWbsId": "p3-efad3477",
-          "containerNodeId": "p3-efad3477",
-          "phaseId": "p3-efad3477",
+          "parentWbsId": "p3-6bd03fba",
+          "containerNodeId": "p3-6bd03fba",
+          "phaseId": "p3-6bd03fba",
           "phaseTitle": "Phase 3 · Verification & Recovery",
           "depth": 1,
           "kind": "done",
@@ -1853,200 +1853,200 @@
           "height": 74,
           "outputSummary": "",
           "restoreTargetCheckpointId": null,
-          "updatedAt": "2026-11-24T06:43:14.459Z"
+          "updatedAt": "2026-11-24T06:47:40.256Z"
         }
       ],
       "edges": [
         {
-          "id": "edge-91156b6d",
-          "scopeId": "wf-4d1bc045",
-          "sourceNodeId": "start-aac8feea",
-          "targetNodeId": "p1t1-33b48fbb",
+          "id": "edge-87773d22",
+          "scopeId": "wf-998de8ad",
+          "sourceNodeId": "start-c0e4dfd6",
+          "targetNodeId": "p1t1-f3640ebd",
           "kind": "dep",
           "label": "init",
           "conditionExpr": null
         },
         {
-          "id": "edge-ccf6b046",
-          "scopeId": "wf-4d1bc045",
-          "sourceNodeId": "p1t1-33b48fbb",
-          "targetNodeId": "p1ckpt-76eeaae2",
+          "id": "edge-586e2de5",
+          "scopeId": "wf-998de8ad",
+          "sourceNodeId": "p1t1-f3640ebd",
+          "targetNodeId": "p1ckpt-d7a1151b",
           "kind": "dep",
           "label": "anchor",
           "conditionExpr": null
         },
         {
-          "id": "edge-d80895e6",
-          "scopeId": "wf-4d1bc045",
-          "sourceNodeId": "p1ckpt-76eeaae2",
-          "targetNodeId": "p2t1-cc872294",
+          "id": "edge-646dc1aa",
+          "scopeId": "wf-998de8ad",
+          "sourceNodeId": "p1ckpt-d7a1151b",
+          "targetNodeId": "p2t1-80c72d00",
           "kind": "dep",
           "label": "fork-1",
           "conditionExpr": null
         },
         {
-          "id": "edge-938150f8",
-          "scopeId": "wf-4d1bc045",
-          "sourceNodeId": "p1ckpt-76eeaae2",
-          "targetNodeId": "p2t2-07ea633a",
+          "id": "edge-a582c76b",
+          "scopeId": "wf-998de8ad",
+          "sourceNodeId": "p1ckpt-d7a1151b",
+          "targetNodeId": "p2t2-1e3c7a05",
           "kind": "dep",
           "label": "fork-2",
           "conditionExpr": null
         },
         {
-          "id": "edge-08fde64a",
-          "scopeId": "wf-4d1bc045",
-          "sourceNodeId": "p2t1-cc872294",
-          "targetNodeId": "p2d1-ea15c7bb",
+          "id": "edge-4c233250",
+          "scopeId": "wf-998de8ad",
+          "sourceNodeId": "p2t1-80c72d00",
+          "targetNodeId": "p2d1-242fb90f",
           "kind": "dep",
           "label": "route",
           "conditionExpr": null
         },
         {
-          "id": "edge-91d8ff4d",
-          "scopeId": "wf-4d1bc045",
-          "sourceNodeId": "p2d1-ea15c7bb",
-          "targetNodeId": "p2std-744d8b41",
+          "id": "edge-d40437dd",
+          "scopeId": "wf-998de8ad",
+          "sourceNodeId": "p2d1-242fb90f",
+          "targetNodeId": "p2std-c60ce502",
           "kind": "pass",
           "label": "standard",
           "conditionExpr": "standard"
         },
         {
-          "id": "edge-aeaae095",
-          "scopeId": "wf-4d1bc045",
-          "sourceNodeId": "p2d1-ea15c7bb",
-          "targetNodeId": "p2ext-537737de",
+          "id": "edge-6ffba23e",
+          "scopeId": "wf-998de8ad",
+          "sourceNodeId": "p2d1-242fb90f",
+          "targetNodeId": "p2ext-6e238b47",
           "kind": "pass",
           "label": "extended",
           "conditionExpr": "extended"
         },
         {
-          "id": "edge-1bae6084",
-          "scopeId": "wf-4d1bc045",
-          "sourceNodeId": "p2t2-07ea633a",
-          "targetNodeId": "p2sec-e947957f",
+          "id": "edge-1b2e97a2",
+          "scopeId": "wf-998de8ad",
+          "sourceNodeId": "p2t2-1e3c7a05",
+          "targetNodeId": "p2sec-24933698",
           "kind": "dep",
           "label": "sync",
           "conditionExpr": null
         },
         {
-          "id": "edge-ad3b2f87",
-          "scopeId": "wf-4d1bc045",
-          "sourceNodeId": "p2std-744d8b41",
-          "targetNodeId": "p2sec-e947957f",
+          "id": "edge-d31ad559",
+          "scopeId": "wf-998de8ad",
+          "sourceNodeId": "p2std-c60ce502",
+          "targetNodeId": "p2sec-24933698",
           "kind": "dep",
           "label": "sync",
           "conditionExpr": null
         },
         {
-          "id": "edge-0f6b7f86",
-          "scopeId": "wf-4d1bc045",
-          "sourceNodeId": "p2ext-537737de",
-          "targetNodeId": "p2sec-e947957f",
+          "id": "edge-afdf9600",
+          "scopeId": "wf-998de8ad",
+          "sourceNodeId": "p2ext-6e238b47",
+          "targetNodeId": "p2sec-24933698",
           "kind": "dep",
           "label": "sync",
           "conditionExpr": null
         },
         {
-          "id": "edge-9039c7e0",
-          "scopeId": "wf-4d1bc045",
-          "sourceNodeId": "p2sec-e947957f",
-          "targetNodeId": "p2join-973ad3ee",
+          "id": "edge-fc2127f9",
+          "scopeId": "wf-998de8ad",
+          "sourceNodeId": "p2sec-24933698",
+          "targetNodeId": "p2join-46055a43",
           "kind": "dep",
           "label": "cleared",
           "conditionExpr": null
         },
         {
-          "id": "edge-a69d9c66",
-          "scopeId": "wf-4d1bc045",
-          "sourceNodeId": "p2join-973ad3ee",
-          "targetNodeId": "p2ckpt-0de3aff4",
+          "id": "edge-011a07aa",
+          "scopeId": "wf-998de8ad",
+          "sourceNodeId": "p2join-46055a43",
+          "targetNodeId": "p2ckpt-ed1a36fd",
           "kind": "dep",
           "label": "checkpoint",
           "conditionExpr": null
         },
         {
-          "id": "edge-172cd77d",
-          "scopeId": "wf-4d1bc045",
-          "sourceNodeId": "p2ckpt-0de3aff4",
-          "targetNodeId": "p3gate-a8a66247",
+          "id": "edge-305a04e5",
+          "scopeId": "wf-998de8ad",
+          "sourceNodeId": "p2ckpt-ed1a36fd",
+          "targetNodeId": "p3gate-1a6d4b39",
           "kind": "dep",
           "label": "verify",
           "conditionExpr": null
         },
         {
-          "id": "edge-6058c9f6",
-          "scopeId": "wf-4d1bc045",
-          "sourceNodeId": "p3gate-a8a66247",
-          "targetNodeId": "p3sc-3233eefd",
+          "id": "edge-12f55d5b",
+          "scopeId": "wf-998de8ad",
+          "sourceNodeId": "p3gate-1a6d4b39",
+          "targetNodeId": "p3sc-396b6c35",
           "kind": "pass",
           "label": "exit 0",
           "conditionExpr": null
         },
         {
-          "id": "edge-6741a1e5",
-          "scopeId": "wf-4d1bc045",
-          "sourceNodeId": "p3gate-a8a66247",
-          "targetNodeId": "p3rst-a6056542",
+          "id": "edge-2dae5fe8",
+          "scopeId": "wf-998de8ad",
+          "sourceNodeId": "p3gate-1a6d4b39",
+          "targetNodeId": "p3rst-449af6a4",
           "kind": "fail",
           "label": "gate fail",
           "conditionExpr": null
         },
         {
-          "id": "edge-bcbe619f",
-          "scopeId": "wf-4d1bc045",
-          "sourceNodeId": "p3sc-3233eefd",
-          "targetNodeId": "p3qa-94dcef35",
+          "id": "edge-9e7341a2",
+          "scopeId": "wf-998de8ad",
+          "sourceNodeId": "p3sc-396b6c35",
+          "targetNodeId": "p3qa-7918dfed",
           "kind": "dep",
           "label": "audit",
           "conditionExpr": null
         },
         {
-          "id": "edge-2ebe6228",
-          "scopeId": "wf-4d1bc045",
-          "sourceNodeId": "p3qa-94dcef35",
-          "targetNodeId": "p3ckpt-e40ef82d",
+          "id": "edge-85b9a590",
+          "scopeId": "wf-998de8ad",
+          "sourceNodeId": "p3qa-7918dfed",
+          "targetNodeId": "p3ckpt-736c2fd2",
           "kind": "pass",
           "label": "pass",
           "conditionExpr": null
         },
         {
-          "id": "edge-4d98dc43",
-          "scopeId": "wf-4d1bc045",
-          "sourceNodeId": "p3qa-94dcef35",
-          "targetNodeId": "p3rst-a6056542",
+          "id": "edge-6ff1bf5a",
+          "scopeId": "wf-998de8ad",
+          "sourceNodeId": "p3qa-7918dfed",
+          "targetNodeId": "p3rst-449af6a4",
           "kind": "fail",
           "label": "qa fail",
           "conditionExpr": null
         },
         {
-          "id": "edge-ddfb3fc2",
-          "scopeId": "wf-4d1bc045",
-          "sourceNodeId": "p3rst-a6056542",
-          "targetNodeId": "p3gate-a8a66247",
+          "id": "edge-30e4eb22",
+          "scopeId": "wf-998de8ad",
+          "sourceNodeId": "p3rst-449af6a4",
+          "targetNodeId": "p3gate-1a6d4b39",
           "kind": "loop",
           "label": "rework",
           "conditionExpr": null
         },
         {
-          "id": "edge-b2cdf36b",
-          "scopeId": "wf-4d1bc045",
-          "sourceNodeId": "p3ckpt-e40ef82d",
-          "targetNodeId": "p3done-b24ac0ce",
+          "id": "edge-e0008ded",
+          "scopeId": "wf-998de8ad",
+          "sourceNodeId": "p3ckpt-736c2fd2",
+          "targetNodeId": "p3done-5951a034",
           "kind": "dep",
           "label": "certify",
           "conditionExpr": null
         }
       ],
       "validation": {
-        "workflowId": "wf-4d1bc045",
+        "workflowId": "wf-998de8ad",
         "valid": false,
         "errorCount": 7,
         "warningCount": 0,
         "infoCount": 2,
         "issues": [
           {
-            "id": "val-fce85c0f",
+            "id": "val-e0e97246",
             "level": "info",
             "category": "spec_coverage",
             "nodeCode": null,
@@ -2055,7 +2055,7 @@
             "suggestion": "Review and confirm or replace auto-suggested assumptions in GoalSpec."
           },
           {
-            "id": "val-7216a8ea",
+            "id": "val-0faa2c5d",
             "level": "info",
             "category": "spec_coverage",
             "nodeCode": null,
@@ -2064,7 +2064,7 @@
             "suggestion": "Review and confirm or replace auto-suggested assumptions in GoalSpec."
           },
           {
-            "id": "val-945d95aa",
+            "id": "val-08128be7",
             "level": "error",
             "category": "capability",
             "nodeCode": "P1.T1",
@@ -2073,7 +2073,7 @@
             "suggestion": "Enable the capability or switch node assignment to a healthy capability."
           },
           {
-            "id": "val-4d740f93",
+            "id": "val-a4a484cc",
             "level": "error",
             "category": "capability",
             "nodeCode": "P2.T1",
@@ -2082,7 +2082,7 @@
             "suggestion": "Enable the capability or switch node assignment to a healthy capability."
           },
           {
-            "id": "val-96fd23a1",
+            "id": "val-88e5f81c",
             "level": "error",
             "category": "capability",
             "nodeCode": "P2.T2",
@@ -2091,7 +2091,7 @@
             "suggestion": "Enable the capability or switch node assignment to a healthy capability."
           },
           {
-            "id": "val-56de40fb",
+            "id": "val-f11dcd98",
             "level": "error",
             "category": "capability",
             "nodeCode": "P2.STD",
@@ -2100,7 +2100,7 @@
             "suggestion": "Enable the capability or switch node assignment to a healthy capability."
           },
           {
-            "id": "val-1e6bcde1",
+            "id": "val-c67a88a2",
             "level": "error",
             "category": "capability",
             "nodeCode": "P2.EXT",
@@ -2109,7 +2109,7 @@
             "suggestion": "Enable the capability or switch node assignment to a healthy capability."
           },
           {
-            "id": "val-31971cdc",
+            "id": "val-4e608454",
             "level": "error",
             "category": "capability",
             "nodeCode": "P2.SEC",
@@ -2118,7 +2118,7 @@
             "suggestion": "Enable the capability or switch node assignment to a healthy capability."
           },
           {
-            "id": "val-70dc9f28",
+            "id": "val-c50c8440",
             "level": "error",
             "category": "capability",
             "nodeCode": "P3.QA",
@@ -2127,14 +2127,14 @@
             "suggestion": "Enable the capability or switch node assignment to a healthy capability."
           }
         ],
-        "checkedAt": "2026-11-24T06:43:14.459Z"
+        "checkedAt": "2026-11-24T06:47:40.256Z"
       },
       "latestTrial": null,
       "lastImpact": null,
       "versions": [],
       "pmReport": {
-        "id": "pm-55cbcdfe",
-        "workflowId": "wf-4d1bc045",
+        "id": "pm-cc7049cb",
+        "workflowId": "wf-998de8ad",
         "mode": "structural_pm",
         "templatePreset": "fullstack_se",
         "detectedModules": [
@@ -2213,7 +2213,7 @@
           "fail-closed-gates",
           "pm-modular-decomposition"
         ],
-        "createdAt": "2026-11-24T06:43:14.458Z"
+        "createdAt": "2026-11-24T06:47:40.255Z"
       }
     }
   },
@@ -2222,11 +2222,11 @@
     "error": "源码提交已变化，请按受影响范围新增设计修订并重新评审",
     "details": {
       "route": "design_review",
-      "designId": "design-729a2042-7df3-4188-8848-0478b62b3445",
+      "designId": "design-1f6f1897-375a-414e-87c5-26c17d119da3",
       "revision": 1,
       "requiresNewRevision": true,
-      "expectedCommit": "34b101f6e11b793edbae0c49cb92bff8dc8947fc",
-      "currentCommit": "a090aeba71fffff9faae01300ff1235677a60148",
+      "expectedCommit": "6e9f42072fa083d94664a0df3ee04db1189774bc",
+      "currentCommit": "37db0e67c72af34caa127f6ec99c6089a4edb19f",
       "changedPaths": [
         "src/service.ts"
       ],
@@ -2238,7 +2238,8 @@
             "src/service.ts"
           ]
         }
-      ]
+      ],
+      "scopeAnalysis": "目标文件、构建清单及已声明的模块依赖；其他改动仍需人工复核"
     }
   }
 }
